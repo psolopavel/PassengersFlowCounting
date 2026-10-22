@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вхід · Passengers Flow</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="login-wrap">
+        <form class="login-card" action="/login" method="post">
+            <h1>Passengers Flow</h1>
+            <p class="sub">Панель менеджера</p>
+
+            {% for f in flashes %}
+            <div class="flash flash-{{ f.category }}">{{ f.message }}</div>
+            {% endfor %}
+
+            <div class="field">
+                <label for="email">Пошта</label>
+                <input type="email" id="email" name="email" required autofocus>
+            </div>
+            <div class="field">
+                <label for="password">Пароль</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Увійти</button>
+        </form>
+    </div>
+    <script src="/static/js/flashes.js"></script>
+</body>
+</html>

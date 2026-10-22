@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Рахувальники{% endblock %}
+{% block page_title %}Рахувальники{% endblock %}
+
+{% block content %}
+<div class="toolbar">
+    <h2>Список рахувальників</h2>
+    {% if current_user.can_edit %}
+    <a href="/admin/counters/new" class="btn btn-primary">+ Новий рахувальник</a>
+    {% endif %}
+</div>
+
+{% if counters %}
+<div data-filterable>
+    <div class="filters">
+        <input type="search" class="filter-search" placeholder="Пошук: ім'я, пошта…" data-filter="search"
+            data-match="includes">
+        <select data-filter="gender">
+            <option value="">Стать: усі</option>
+            {% for g in genders %}
+            <option value="{{ g }}">{{ gender_labels[g] }}</option>
+            {% endfor %}
+        </select>
+        <select data-filter="employment">
+            <option value="">Зайнятість: усі</option>
+            {% for e in employments %}
+            <option value="{{ e }}">{{ employment_labels[e] }}</option>
+            {% endfor %}
+        </select>
+        <select data-filter="cartype" data-match="list">
+            <option value="">Типи авто: усі</option>
+            {% for t in car_types %}
+            <option value="{{ t }}">{{ car_type_labels[t] }}</option>
+            {% endfor %}
+        </select>
+        <select data-filter="rating">
+            <option value="">Рейтинг: усі</option>
+            {% for i in range(1, 6) %}
+            <option value="{{ i }}">{{ i }} ★</option>
+            {% endfor %}
+        </select>
+        <select data-filter="online">
+            <option value="">Онлайн: усі</option>
+            <option value="1">Онлайн</option>
+            <option value="0">Офлайн</option>
+        </select>
+        <button type="button" class="btn btn-sm" data-filter-reset>Скинути</button>
+    </div>
+
+    <div class="card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Фото</th>
+                    <th>Ім'я</th>
+                    <th>Пошта</th>
+                    <th>Вік</th>
+                    <th>Стать</th>
+                    <th>Зайнятість</th>
+                    <th>Типи авто</th>
+                    <th>Рейтинг</th>
+                    <th>Онлайн</th>
+                    {% if current_user.can_edit %}<th></th>{% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in counters %}
+                <tr data-search="{{ ((c.name or '') ~ ' ' ~ (c.email or '')) | lower }}"
+                    data-gender="{{ c.counter.gender if c.counter and c.counter.gender else '' }}"
+                    data-employment="{{ c.counter.employment if c.counter and c.counter.employment else '' }}"
+                    data-cartype="{{ c.counter.car_types | join(',') if c.counter and c.counter.car_types else '' }}"
+                    data-rating="{{ c.counter.rating if c.counter and c.counter.rating else '' }}"
+                    data-online="{{ '1' if c.is_online else '0' }}">
+                    <td>
+                        {% if current_user.is_manager %}
+                        <a href="/panel/?counter_id={{ c.id }}" class="avatar-link" target="_blank"
+                            rel="noopener" title="Відкрити панель рахувальника">
+                            {% if c.photo_url %}
+                            <img src="{{ c.photo_url }}" alt="" class="avatar">
+                            {% else %}
+                            <span class="avatar avatar-empty">{{ (c.name or c.email)[0] | upper }}</span>
+                            {% endif %}
+                        </a>
+                        {% else %}
+                        {% if c.photo_url %}
+                        <img src="{{ c.photo_url }}" alt="" class="avatar">
+                        {% else %}
+                        <span class="avatar avatar-empty">{{ (c.name or c.email)[0] | upper }}</span>
+                        {% endif %}
+                        {% endif %}
+                    </td>
+                    <td>{{ c.name or '—' }}</td>
+                    <td>{{ c.email }}</td>
+                    <td>{{ c.counter.age if c.counter and c.counter.age is not none else '—' }}</td>
+                    <td>{{ gender_labels.get(c.counter.gender, '—') if c.counter else '—' }}</td>
+                    <td>{{ employment_labels.get(c.counter.employment, '—') if c.counter else '—' }}</td>
+                    <td>
+                        {% if c.counter and c.counter.car_types %}
+                        {% for t in c.counter.car_types %}<span class="pill">{{ car_type_labels.get(t, t) }}</span> {%
+                        endfor %}
+                        {% else %}<span class="muted">—</span>{% endif %}
+                    </td>
+                    <td>
+                        {% if c.counter and c.counter.rating %}
+                        <span class="stars-display" aria-label="Рейтинг {{ c.counter.rating }}">
+                            {% for i in range(1, 6) %}
+                            <span class="rating-star {% if c.counter.rating >= i %}filled{% endif %}">★</span>
+                            {% endfor %}
+                        </span>
+                        {% else %}<span class="muted">—</span>{% endif %}
+                    </td>
+                    <td>
+                        {% if c.is_online %}<span class="pill pill-on">онлайн</span>
+                        {% else %}<span class="pill pill-off">офлайн</span>{% endif %}
+                    </td>
+                    {% if current_user.can_edit %}
+                    <td>
+                        <div class="actions">
+                            <a href="/admin/counters/{{ c.id }}/edit" class="btn btn-sm">Змінити</a>
+                            <form action="/admin/counters/{{ c.id }}/delete" method="post" class="inline"
+                                onsubmit="return confirm('Видалити рахувальника {{ c.name or c.email }}?');">
+                                <button type="submit" class="btn btn-sm btn-danger">Видалити</button>
+                            </form>
+                        </div>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="empty hidden" data-filter-empty>Нічого не знайдено за заданими фільтрами.</div>
+    </div>
+</div>
+{% else %}
+<div class="card">
+    <div class="empty">Рахувальників поки немає.</div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/filters.js"></script>
+{% endblock %}

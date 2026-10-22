@@ -1,0 +1,112 @@
+{% extends "counter_base.html" %}
+{% block title %}{% if is_final_stop %}Кінцеві зупинки{% else %}Міжмісто{% endif %} · {{ car.name or car.imei }}{% endblock %}
+
+{% block content %}
+<div class="cc cc-intercity{% if is_final_stop %} cc-final-stop{% endif %}" id="cc" data-status="{{ session.status }}">
+
+    <aside class="cc-sidebar" id="ccSidebar">
+        <div class="cc-sidebar-head">
+            <button type="button" class="cc-sidebar-toggle" id="ccSidebarToggle" title="Згорнути список"><img
+                    src="../../static/images/arrow.svg" alt="Згорнути список"></button>
+            <div class="cc-sidebar-title">
+                <span>{% if is_final_stop %}Візити зон{% else %}Відрізки{% endif %}</span>
+                <span class="cc-sidebar-progress" id="ccSegProgress">{{ filled }} / {{ segments | length }}</span>
+            </div>
+        </div>
+        <div class="cc-sidebar-body" id="ccSidebarBody"></div>
+    </aside>
+
+    <div class="cc-main">
+        <div class="cc-topbar">
+            <div class="cc-title">
+                <span class="cc-kind">{% if is_final_stop %}Кінцеві зупинки{% else %}Міжмісто{% endif %}</span>
+                <span class="cc-name">{{ car.name or car.imei }}</span>
+                <span class="cc-day">{{ ref_day.strftime('%d.%m.%Y') }}</span>
+            </div>
+            <div class="cc-tools">
+                <label class="cc-check">
+                    <input type="checkbox" id="ccShowGraph" checked>
+                    <span>Показувати графік</span>
+                </label>
+                <div class="cc-cams" id="ccCams" title="Камери для перегляду (макс 4)">
+                    <span class="muted">Камери:</span>
+                </div>
+            </div>
+        </div>
+
+        {% if is_final_stop %}
+        <div class="cc-notice" role="note">
+            Рахуйте лише кількість <strong>входів і виходів</strong> водія, персоналу транспорту або пасажирів,
+            які заходять або виходять <strong>по кілька разів</strong>.
+        </div>
+        {% endif %}
+
+        <div class="cc-stage">
+            <div class="cc-grid" id="ccGrid" data-count="0"></div>
+            <div class="cc-overlay" id="ccOverlay">Завантаження медіа…</div>
+        </div>
+
+        <div class="cc-controls">
+            <button type="button" class="btn btn-primary cc-play" id="ccPlay" title="Пробіл"><img
+                    src="../../static/images/play-video.svg" id="ccPlayIcon" alt="Програвати"></button>
+            <button type="button" class="btn" id="ccBack" title="кадр назад"><img
+                    src="../../static/images/arrow-next.svg" id="ccBackIcon" alt="кадр назад"></button>
+            <button type="button" class="btn" id="ccFwd" title="кадр вперед"><img
+                    src="../../static/images/arrow-next.svg" id="ccFwdIcon" alt="кадр вперед"></button>
+            <div class="cc-rate">
+                <button type="button" class="btn btn-sm" id="ccRateDown" title="зменшити швидкість"><img
+                        src="../../static/images/minus.svg" id="ccRateDownIcon" alt="зменшити швидкість"></button>
+                <span id="ccRate"></span>
+                <button type="button" class="btn btn-sm" id="ccRateUp" title="збільшити швидкість"><img
+                        src="../../static/images/plus.svg" id="ccRateUpIcon" alt="збільшити швидкість"></button>
+            </div>
+            <div class="cc-timeline">
+                <span class="cc-time" id="ccCur">00:00:00</span>
+                <input type="range" id="ccSeek" min="0" max="1000" value="0" step="1">
+                <span class="cc-time" id="ccDur">00:00:00</span>
+            </div>
+        </div>
+
+        <div class="cc-graphs" id="ccGraphs">
+            <canvas id="ccCanvas"></canvas>
+        </div>
+
+        <div class="cc-footer">
+            {% if is_final_stop %}
+            <div class="cc-dual-inputs">
+                <label class="cc-total-label">
+                    Увійшли:
+                    <input type="number" id="ccEntered" min="0" step="1" value="" placeholder="—"
+                        aria-label="Кількість увійшли на поточному візиті">
+                </label>
+                <label class="cc-total-label">
+                    Вийшли:
+                    <input type="number" id="ccExited" min="0" step="1" value="" placeholder="—"
+                        aria-label="Кількість вийшли на поточному візиті">
+                </label>
+            </div>
+            {% else %}
+            <label class="cc-total-label">
+                Кількість людей у салоні:
+                <input type="number" id="ccTotal" min="0"
+                    max="{{ car.max_people_count_in_car or 100 }}" step="1" value="" placeholder="—"
+                    title="Максимум {{ car.max_people_count_in_car or 100 }}"
+                    aria-label="Кількість людей на поточному відрізку">
+            </label>
+            {% endif %}
+            <div class="cc-footer-actions">
+                <button type="button" class="btn" id="ccPrev">Попередня</button>
+                <button type="button" class="btn" id="ccNext">Наступна</button>
+                <button type="button" class="btn btn-primary" id="ccSave">Зберегти</button>
+                <span id="ccSaveState" class="muted"></span>
+            </div>
+        </div>
+    </div>
+
+    <script id="ccConfig" type="application/json">{{ config_json | safe }}</script>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="/static/js/count_intercity.js"></script>
+{% endblock %}

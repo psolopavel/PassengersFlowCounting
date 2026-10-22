@@ -1,0 +1,2011 @@
+// Запрос:
+
+const BASE = "http://138.201.226.159:8083";
+const API_KEY = "qX4vE9lkR3yaL7gyAfuF0ixQ6miGecM1sv8nzZ5oeIcnShpNasJjoHwrV2xdC2wB4khW6l";
+
+fetch(`${BASE}/api/v1/session/352625694509058/2026-09-04`, {
+   method: "GET",
+   headers: { "X-API-Key": API_KEY, "Content-Type": "application/json" }
+})
+   .then(r => r.json())
+   .then(console.log)
+   .catch(console.error);
+
+// Ответ:
+
+{
+   "imei": "352625694509058",
+   "day": "2026-09-04",
+   "kind": "intercity",
+   "status": "ready",
+   "data": {
+       "kind": "intercity",
+       "source_used": "photoAndVideo",
+       "window": {
+           "start_utc": 1788487200,
+           "end_utc": 1788548400
+       },
+       "distance_km": 126.62,
+       "track": {
+           "points": 2216,
+           "gap_filled": true,
+           "distance_km": 126.62,
+           "source": "gps._car_794"
+       },
+       "route_periods": [
+           {
+               "route_id": 366,
+               "route_name": "Одеса - Єгорівка",
+               "start_utc": 1788489061,
+               "end_utc": 1788489295,
+               "occurrence": 1
+           },
+           {
+               "route_id": 280,
+               "route_name": "Єгорівка  - Одеса",
+               "start_utc": 1788489301,
+               "end_utc": 1788489455,
+               "occurrence": 1
+           },
+           {
+               "route_id": 280,
+               "route_name": "Єгорівка  - Одеса",
+               "start_utc": 1788489471,
+               "end_utc": 1788489863,
+               "occurrence": 2
+           },
+           {
+               "route_id": 366,
+               "route_name": "Одеса - Єгорівка",
+               "start_utc": 1788489869,
+               "end_utc": 1788490063,
+               "occurrence": 2
+           },
+           {
+               "route_id": 366,
+               "route_name": "Одеса - Єгорівка",
+               "start_utc": 1788491755,
+               "end_utc": 1788491860,
+               "occurrence": 3
+           },
+           {
+               "route_id": 280,
+               "route_name": "Єгорівка  - Одеса",
+               "start_utc": 1788491861,
+               "end_utc": 1788493818,
+               "occurrence": 3
+           },
+           {
+               "route_id": 200,
+               "route_name": "Дачне - Одеса",
+               "start_utc": 1788493830,
+               "end_utc": 1788495813,
+               "occurrence": 1
+           },
+           {
+               "route_id": 304,
+               "route_name": "Одеса - Дачне",
+               "start_utc": 1788495856,
+               "end_utc": 1788498584,
+               "occurrence": 1
+           },
+           {
+               "route_id": 200,
+               "route_name": "Дачне - Одеса",
+               "start_utc": 1788498603,
+               "end_utc": 1788503508,
+               "occurrence": 2
+           },
+           {
+               "route_id": 366,
+               "route_name": "Одеса - Єгорівка",
+               "start_utc": 1788503526,
+               "end_utc": 1788538956,
+               "occurrence": 4
+           },
+           {
+               "route_id": 366,
+               "route_name": "Одеса - Єгорівка",
+               "start_utc": 1788540088,
+               "end_utc": 1788540189,
+               "occurrence": 5
+           },
+           {
+               "route_id": 280,
+               "route_name": "Єгорівка  - Одеса",
+               "start_utc": 1788540197,
+               "end_utc": 1788541099,
+               "occurrence": 4
+           },
+           {
+               "route_id": 366,
+               "route_name": "Одеса - Єгорівка",
+               "start_utc": 1788541113,
+               "end_utc": 1788545064,
+               "occurrence": 6
+           }
+       ],
+       "segments": [
+           {
+               "seg_key": "366:3569:3570:1:0",
+               "route_id": 366,
+               "route_name": "Одеса - Єгорівка",
+               "occurrence": 1,
+               "from_stop": {
+                   "id": 3569,
+                   "name": "поворот на Нерубайське",
+                   "order": 10,
+                   "arrival_utc": 1788489061,
+                   "departure_utc": 1788489061
+               },
+               "to_stop": {
+                   "id": 3570,
+                   "name": "WOG",
+                   "order": 11,
+                   "arrival_utc": 1788489125,
+                   "departure_utc": 1788489125
+               },
+               "period_start_utc": 1788489061,
+               "period_end_utc": 1788489125,
+               "assumed_start": true,
+               "count": 0,
+               "distance_km": 2.6
+           },
+           {
+               "seg_key": "366:3570:3571:1:1",
+               "route_id": 366,
+               "route_name": "Одеса - Єгорівка",
+               "occurrence": 1,
+               "from_stop": {
+                   "id": 3570,
+                   "name": "WOG",
+                   "order": 11,
+                   "arrival_utc": 1788489125,
+                   "departure_utc": 1788489125
+               },
+               "to_stop": {
+                   "id": 3571,
+                   "name": "поворот на Велику Балку",
+                   "order": 12,
+                   "arrival_utc": 1788489161,
+                   "departure_utc": 1788489161
+               },
+               "period_start_utc": 1788489125,
+               "period_end_utc": 1788489161,
+               "count": 0,
+               "distance_km": 1.95
+           },
+           {
+               "seg_key": "366:3571:3572:1:2",
+               "route_id": 366,
+               "route_name": "Одеса - Єгорівка",
+               "occurrence": 1,
+               "from_stop": {
+                   "id": 3571,
+                   "name": "поворот на Велику Балку",
+                   "order": 12,
+                   "arrival_utc": 1788489161,
+                   "departure_utc": 1788489161
+               },
+               "to_stop": {
+                   "id": 3572,
+                   "name": "поворот на Холодну Балку",
+                   "order": 13,
+                   "arrival_utc": 1788489259,
+                   "departure_utc": 1788489259
+               },
+               "period_start_utc": 1788489161,
+               "period_end_utc": 1788489259,
+               "count": 0,
+               "distance_km": 3.9
+           },
+           {
+               "seg_key": "280:2607:2608:1:0",
+               "route_id": 280,
+               "route_name": "Єгорівка  - Одеса",
+               "occurrence": 1,
+               "from_stop": {
+                   "id": 2607,
+                   "name": "поворот на Єлизаветівку",
+                   "order": 4,
+                   "arrival_utc": 1788489301,
+                   "departure_utc": 1788489301
+               },
+               "to_stop": {
+                   "id": 2608,
+                   "name": "поворот на Дачне",
+                   "order": 5,
+                   "arrival_utc": 1788489334,
+                   "departure_utc": 1788489334
+               },
+               "period_start_utc": 1788489301,
+               "period_end_utc": 1788489334,
+               "assumed_start": true,
+               "count": 0,
+               "distance_km": 0.12
+           },
+           {
+               "seg_key": "280:2608:2609:2:0",
+               "route_id": 280,
+               "route_name": "Єгорівка  - Одеса",
+               "occurrence": 2,
+               "from_stop": {
+                   "id": 2608,
+                   "name": "поворот на Дачне",
+                   "order": 5,
+                   "arrival_utc": 1788489471,
+                   "departure_utc": 1788489471
+               },
+               "to_stop": {
+                   "id": 2609,
+                   "name": "поворот на Холодну Балку",
+                   "order": 6,
+                   "arrival_utc": 1788489737,
+                   "departure_utc": 1788489743
+               },
+               "period_start_utc": 1788489471,
+               "period_end_utc": 1788489737,
+               "assumed_start": true,
+               "count": 0,
+               "distance_km": 2.63
+           },
+           {
+               "seg_key": "280:2609:2608:2:1",
+               "route_id": 280,
+               "route_name": "Єгорівка  - Одеса",
+               "occurrence": 2,
+               "from_stop": {
+                   "id": 2609,
+                   "name": "поворот на Холодну Балку",
+                   "order": 6,
+                   "arrival_utc": 1788489737,
+                   "departure_utc": 1788489743
+               },
+               "to_stop": {
+                   "id": 2608,
+                   "name": "поворот на Дачне",
+                   "order": 5,
+                   "arrival_utc": 1788489804,
+                   "departure_utc": 1788489820
+               },
+               "period_start_utc": 1788489743,
+               "period_end_utc": 1788489804,
+               "count": 10,
+               "distance_km": 0.98
+           },
+           {
+               "seg_key": "280:2607:2608:3:0",
+               "route_id": 280,
+               "route_name": "Єгорівка  - Одеса",
+               "occurrence": 3,
+               "from_stop": {
+                   "id": 2607,
+                   "name": "поворот на Єлизаветівку",
+                   "order": 4,
+                   "arrival_utc": 1788491861,
+                   "departure_utc": 1788491861
+               },
+               "to_stop": {
+                   "id": 2608,
+                   "name": "поворот на Дачне",
+                   "order": 5,
+                   "arrival_utc": 1788492082,
+                   "departure_utc": 1788492082
+               },
+               "period_start_utc": 1788491861,
+               "period_end_utc": 1788492082,
+               "assumed_start": true,
+               "count": 12,
+               "distance_km": 3.76
+           },
+           {
+               "seg_key": "280:2608:2609:3:1",
+               "route_id": 280,
+               "route_name": "Єгорівка  - Одеса",
+               "occurrence": 3,
+               "from_stop": {
+                   "id": 2608,
+                   "name": "поворот на Дачне",
+                   "order": 5,
+                   "arrival_utc": 1788492082,
+                   "departure_utc": 1788492082
+               },
+               "to_stop": {
+                   "id": 2609,
+                   "name": "поворот на Холодну Балку",
+                   "order": 6,
+                   "arrival_utc": 1788492142,
+                   "departure_utc": 1788492142
+               },
+               "period_start_utc": 1788492082,
+               "period_end_utc": 1788492142,
+               "count": 13,
+               "distance_km": 1.17
+           },
+           {
+               "seg_key": "280:2609:2610:3:2",
+               "route_id": 280,
+               "route_name": "Єгорівка  - Одеса",
+               "occurrence": 3,
+               "from_stop": {
+                   "id": 2609,
+                   "name": "поворот на Холодну Балку",
+                   "order": 6,
+                   "arrival_utc": 1788492142,
+                   "departure_utc": 1788492142
+               },
+               "to_stop": {
+                   "id": 2610,
+                   "name": "поворот на Велику Балку",
+                   "order": 7,
+                   "arrival_utc": 1788492303,
+                   "departure_utc": 1788492303
+               },
+               "period_start_utc": 1788492142,
+               "period_end_utc": 1788492303,
+               "count": 14,
+               "distance_km": 3.68
+           },
+           {
+               "seg_key": "280:2610:2611:3:3",
+               "route_id": 280,
+               "route_name": "Єгорівка  - Одеса",
+               "occurrence": 3,
+               "from_stop": {
+                   "id": 2610,
+                   "name": "поворот на Велику Балку",
+                   "order": 7,
+                   "arrival_utc": 1788492303,
+                   "departure_utc": 1788492303
+               },
+               "to_stop": {
+                   "id": 2611,
+                   "name": "WOG",
+                   "order": 8,
+                   "arrival_utc": 1788492348,
+                   "departure_utc": 1788492348
+               },
+               "period_start_utc": 1788492303,
+               "period_end_utc": 1788492348,
+               "count": 10,
+               "distance_km": 1.18
+           },
+           {
+               "seg_key": "280:2611:2612:3:4",
+               "route_id": 280,
+               "route_name": "Єгорівка  - Одеса",
+               "occurrence": 3,
+               "from_stop": {
+                   "id": 2611,
+                   "name": "WOG",
+                   "order": 8,
+                   "arrival_utc": 1788492348,
+                   "departure_utc": 1788492348
+               },
+               "to_stop": {
+                   "id": 2612,
+                   "name": "поворот на Нерубайське",
+                   "order": 9,
+                   "arrival_utc": 1788492463,
+                   "departure_utc": 1788492463
+               },
+               "period_start_utc": 1788492348,
+               "period_end_utc": 1788492463,
+               "count": 6,
+               "distance_km": 2.72
+           },
+           {
+               "seg_key": "280:2612:2613:3:5",
+               "route_id": 280,
+               "route_name": "Єгорівка  - Одеса",
+               "occurrence": 3,
+               "from_stop": {
+                   "id": 2612,
+                   "name": "поворот на Нерубайське",
+                   "order": 9,
+                   "arrival_utc": 1788492463,
+                   "departure_utc": 1788492463
+               },
+               "to_stop": {
+                   "id": 2613,
+                   "name": "Клеверний міст",
+                   "order": 10,
+                   "arrival_utc": 1788492568,
+                   "departure_utc": 1788492568
+               },
+               "period_start_utc": 1788492463,
+               "period_end_utc": 1788492568,
+               "count": 3,
+               "distance_km": 2.48
+           },
+           {
+               "seg_key": "280:2613:2614:3:6",
+               "route_id": 280,
+               "route_name": "Єгорівка  - Одеса",
+               "occurrence": 3,
+               "from_stop": {
+                   "id": 2613,
+                   "name": "Клеверний міст",
+                   "order": 10,
+                   "arrival_utc": 1788492568,
+                   "departure_utc": 1788492568
+               },
+               "to_stop": {
+                   "id": 2614,
+                   "name": "вул.Героїв-Комсомольців",
+                   "order": 11,
+                   "arrival_utc": 1788492875,
+                   "departure_utc": 1788492879
+               },
+               "period_start_utc": 1788492568,
+               "period_end_utc": 1788492875,
+               "count": 11,
+               "distance_km": 4.99
+           },
+           {
+               "seg_key": "280:2614:2615:3:7",
+               "route_id": 280,
+               "route_name": "Єгорівка  - Одеса",
+               "occurrence": 3,
+               "from_stop": {
+                   "id": 2614,
+                   "name": "вул.Героїв-Комсомольців",
+                   "order": 11,
+                   "arrival_utc": 1788492875,
+                   "departure_utc": 1788492879
+               },
+               "to_stop": {
+                   "id": 2615,
+                   "name": "пров.Майстерний",
+                   "order": 12,
+                   "arrival_utc": 1788492939,
+                   "departure_utc": 1788492958
+               },
+               "period_start_utc": 1788492879,
+               "period_end_utc": 1788492939,
+               "count": 32,
+               "distance_km": 0.65
+           },
+           {
+               "seg_key": "280:2615:2616:3:8",
+               "route_id": 280,
+               "route_name": "Єгорівка  - Одеса",
+               "occurrence": 3,
+               "from_stop": {
+                   "id": 2615,
+                   "name": "пров.Майстерний",
+                   "order": 12,
+                   "arrival_utc": 1788492939,
+                   "departure_utc": 1788492958
+               },
+               "to_stop": {
+                   "id": 2616,
+                   "name": "Хімічна",
+                   "order": 13,
+                   "arrival_utc": 1788493314,
+                   "departure_utc": 1788493314
+               },
+               "period_start_utc": 1788492958,
+               "period_end_utc": 1788493314,
+               "count": 4,
+               "distance_km": 0.92
+           },
+           {
+               "seg_key": "280:2616:2617:3:9",
+               "route_id": 280,
+               "route_name": "Єгорівка  - Одеса",
+               "occurrence": 3,
+               "from_stop": {
+                   "id": 2616,
+                   "name": "Хімічна",
+                   "order": 13,
+                   "arrival_utc": 1788493314,
+                   "departure_utc": 1788493314
+               },
+               "to_stop": {
+                   "id": 2617,
+                   "name": "вул.Нафтовиків",
+                   "order": 14,
+                   "arrival_utc": 1788493343,
+                   "departure_utc": 1788493349
+               },
+               "period_start_utc": 1788493314,
+               "period_end_utc": 1788493343,
+               "count": 4,
+               "distance_km": 0.48
+           },
+           {
+               "seg_key": "280:2617:2618:3:10",
+               "route_id": 280,
+               "route_name": "Єгорівка  - Одеса",
+               "occurrence": 3,
+               "from_stop": {
+                   "id": 2617,
+                   "name": "вул.Нафтовиків",
+                   "order": 14,
+                   "arrival_utc": 1788493343,
+                   "departure_utc": 1788493349
+               },
+               "to_stop": {
+                   "id": 2618,
+                   "name": "вул.Грушевського",
+                   "order": 15,
+                   "arrival_utc": 1788493423,
+                   "departure_utc": 1788493423
+               },
+               "period_start_utc": 1788493349,
+               "period_end_utc": 1788493423,
+               "count": 6,
+               "distance_km": 0.76
+           },
+           {
+               "seg_key": "280:2618:2619:3:11",
+               "route_id": 280,
+               "route_name": "Єгорівка  - Одеса",
+               "occurrence": 3,
+               "from_stop": {
+                   "id": 2618,
+                   "name": "вул.Грушевського",
+                   "order": 15,
+                   "arrival_utc": 1788493423,
+                   "departure_utc": 1788493423
+               },
+               "to_stop": {
+                   "id": 2619,
+                   "name": "вул.Пестеля",
+                   "order": 16,
+                   "arrival_utc": 1788493471,
+                   "departure_utc": 1788493471
+               },
+               "period_start_utc": 1788493423,
+               "period_end_utc": 1788493471,
+               "count": 3,
+               "distance_km": 0.57
+           },
+           {
+               "seg_key": "280:2619:2620:3:12",
+               "route_id": 280,
+               "route_name": "Єгорівка  - Одеса",
+               "occurrence": 3,
+               "from_stop": {
+                   "id": 2619,
+                   "name": "вул.Пестеля",
+                   "order": 16,
+                   "arrival_utc": 1788493471,
+                   "departure_utc": 1788493471
+               },
+               "to_stop": {
+                   "id": 2620,
+                   "name": "вул.Паркова",
+                   "order": 17,
+                   "arrival_utc": 1788493513,
+                   "departure_utc": 1788493519
+               },
+               "period_start_utc": 1788493471,
+               "period_end_utc": 1788493513,
+               "count": 10,
+               "distance_km": 0.63
+           },
+           {
+               "seg_key": "280:2620:2621:3:13",
+               "route_id": 280,
+               "route_name": "Єгорівка  - Одеса",
+               "occurrence": 3,
+               "from_stop": {
+                   "id": 2620,
+                   "name": "вул.Паркова",
+                   "order": 17,
+                   "arrival_utc": 1788493513,
+                   "departure_utc": 1788493519
+               },
+               "to_stop": {
+                   "id": 2621,
+                   "name": "Автовокзал",
+                   "order": 18,
+                   "arrival_utc": 1788493575,
+                   "departure_utc": 1788493575
+               },
+               "period_start_utc": 1788493519,
+               "period_end_utc": 1788493575,
+               "count": 10,
+               "distance_km": 1.06
+           },
+           {
+               "seg_key": "200:1870:1871:1:0",
+               "route_id": 200,
+               "route_name": "Дачне - Одеса",
+               "occurrence": 1,
+               "from_stop": {
+                   "id": 1870,
+                   "name": "вул.Скісна",
+                   "order": 13,
+                   "arrival_utc": 1788493830,
+                   "departure_utc": 1788493830
+               },
+               "to_stop": {
+                   "id": 1871,
+                   "name": "Привоз",
+                   "order": 14,
+                   "arrival_utc": 1788493969,
+                   "departure_utc": 1788493969
+               },
+               "period_start_utc": 1788493830,
+               "period_end_utc": 1788493969,
+               "assumed_start": true,
+               "count": 0,
+               "distance_km": 0.76
+           },
+           {
+               "seg_key": "200:1871:1872:1:1",
+               "route_id": 200,
+               "route_name": "Дачне - Одеса",
+               "occurrence": 1,
+               "from_stop": {
+                   "id": 1871,
+                   "name": "Привоз",
+                   "order": 14,
+                   "arrival_utc": 1788493969,
+                   "departure_utc": 1788493969
+               },
+               "to_stop": {
+                   "id": 1872,
+                   "name": "Новощіпний ряд",
+                   "order": 15,
+                   "arrival_utc": 1788494047,
+                   "departure_utc": 1788494093
+               },
+               "period_start_utc": 1788493969,
+               "period_end_utc": 1788494047,
+               "count": 0,
+               "distance_km": 0.31
+           },
+           {
+               "seg_key": "200:1872:1873:1:2",
+               "route_id": 200,
+               "route_name": "Дачне - Одеса",
+               "occurrence": 1,
+               "from_stop": {
+                   "id": 1872,
+                   "name": "Новощіпний ряд",
+                   "order": 15,
+                   "arrival_utc": 1788494047,
+                   "departure_utc": 1788494093
+               },
+               "to_stop": {
+                   "id": 1873,
+                   "name": "Одеса",
+                   "order": 16,
+                   "arrival_utc": 1788495810,
+                   "departure_utc": 1788495810
+               },
+               "period_start_utc": 1788494093,
+               "period_end_utc": 1788495810,
+               "count": 0,
+               "distance_km": 0.66
+           },
+           {
+               "seg_key": "304:2855:2856:1:0",
+               "route_id": 304,
+               "route_name": "Одеса - Дачне",
+               "occurrence": 1,
+               "from_stop": {
+                   "id": 2855,
+                   "name": "Одеса",
+                   "order": 0,
+                   "arrival_utc": 1788495856,
+                   "departure_utc": 1788496706
+               },
+               "to_stop": {
+                   "id": 2856,
+                   "name": "Новощіпний ряд",
+                   "order": 1,
+                   "arrival_utc": 1788496782,
+                   "departure_utc": 1788496796
+               },
+               "period_start_utc": 1788496706,
+               "period_end_utc": 1788496782,
+               "count": 0,
+               "distance_km": 0.39
+           },
+           {
+               "seg_key": "304:2856:2857:1:1",
+               "route_id": 304,
+               "route_name": "Одеса - Дачне",
+               "occurrence": 1,
+               "from_stop": {
+                   "id": 2856,
+                   "name": "Новощіпний ряд",
+                   "order": 1,
+                   "arrival_utc": 1788496782,
+                   "departure_utc": 1788496796
+               },
+               "to_stop": {
+                   "id": 2857,
+                   "name": "Привоз",
+                   "order": 2,
+                   "arrival_utc": 1788496859,
+                   "departure_utc": 1788496893
+               },
+               "period_start_utc": 1788496796,
+               "period_end_utc": 1788496859,
+               "count": 32,
+               "distance_km": 0.27
+           },
+           {
+               "seg_key": "304:2857:3907:1:2",
+               "route_id": 304,
+               "route_name": "Одеса - Дачне",
+               "occurrence": 1,
+               "from_stop": {
+                   "id": 2857,
+                   "name": "Привоз",
+                   "order": 2,
+                   "arrival_utc": 1788496859,
+                   "departure_utc": 1788496893
+               },
+               "to_stop": {
+                   "id": 3907,
+                   "name": "Скісна",
+                   "order": 16,
+                   "arrival_utc": 1788497341,
+                   "departure_utc": 1788497341
+               },
+               "period_start_utc": 1788496893,
+               "period_end_utc": 1788497341,
+               "count": 43,
+               "distance_km": 2.34
+           },
+           {
+               "seg_key": "304:3907:2859:1:3",
+               "route_id": 304,
+               "route_name": "Одеса - Дачне",
+               "occurrence": 1,
+               "from_stop": {
+                   "id": 3907,
+                   "name": "Скісна",
+                   "order": 16,
+                   "arrival_utc": 1788497341,
+                   "departure_utc": 1788497341
+               },
+               "to_stop": {
+                   "id": 2859,
+                   "name": "Автовокзал",
+                   "order": 3,
+                   "arrival_utc": 1788497389,
+                   "departure_utc": 1788497393
+               },
+               "period_start_utc": 1788497341,
+               "period_end_utc": 1788497389,
+               "count": 2,
+               "distance_km": 0.3
+           },
+           {
+               "seg_key": "304:2859:2860:1:4",
+               "route_id": 304,
+               "route_name": "Одеса - Дачне",
+               "occurrence": 1,
+               "from_stop": {
+                   "id": 2859,
+                   "name": "Автовокзал",
+                   "order": 3,
+                   "arrival_utc": 1788497389,
+                   "departure_utc": 1788497393
+               },
+               "to_stop": {
+                   "id": 2860,
+                   "name": "вул.Паркова",
+                   "order": 4,
+                   "arrival_utc": 1788497535,
+                   "departure_utc": 1788497535
+               },
+               "period_start_utc": 1788497393,
+               "period_end_utc": 1788497535,
+               "count": 1,
+               "distance_km": 1.06
+           },
+           {
+               "seg_key": "304:2860:2861:1:5",
+               "route_id": 304,
+               "route_name": "Одеса - Дачне",
+               "occurrence": 1,
+               "from_stop": {
+                   "id": 2860,
+                   "name": "вул.Паркова",
+                   "order": 4,
+                   "arrival_utc": 1788497535,
+                   "departure_utc": 1788497535
+               },
+               "to_stop": {
+                   "id": 2861,
+                   "name": "вул.Пестеля",
+                   "order": 5,
+                   "arrival_utc": 1788497614,
+                   "departure_utc": 1788497615
+               },
+               "period_start_utc": 1788497535,
+               "period_end_utc": 1788497614,
+               "count": 2,
+               "distance_km": 0.63
+           },
+           {
+               "seg_key": "304:2861:2862:1:6",
+               "route_id": 304,
+               "route_name": "Одеса - Дачне",
+               "occurrence": 1,
+               "from_stop": {
+                   "id": 2861,
+                   "name": "вул.Пестеля",
+                   "order": 5,
+                   "arrival_utc": 1788497614,
+                   "departure_utc": 1788497615
+               },
+               "to_stop": {
+                   "id": 2862,
+                   "name": "вул.Грушевського",
+                   "order": 6,
+                   "arrival_utc": 1788497712,
+                   "departure_utc": 1788497712
+               },
+               "period_start_utc": 1788497615,
+               "period_end_utc": 1788497712,
+               "count": 3,
+               "distance_km": 0.58
+           },
+           {
+               "seg_key": "304:2862:2863:1:7",
+               "route_id": 304,
+               "route_name": "Одеса - Дачне",
+               "occurrence": 1,
+               "from_stop": {
+                   "id": 2862,
+                   "name": "вул.Грушевського",
+                   "order": 6,
+                   "arrival_utc": 1788497712,
+                   "departure_utc": 1788497712
+               },
+               "to_stop": {
+                   "id": 2863,
+                   "name": "вул.Нафтовиків",
+                   "order": 7,
+                   "arrival_utc": 1788497786,
+                   "departure_utc": 1788497791
+               },
+               "period_start_utc": 1788497712,
+               "period_end_utc": 1788497786,
+               "count": 4,
+               "distance_km": 0.63
+           },
+           {
+               "seg_key": "304:2863:2864:1:8",
+               "route_id": 304,
+               "route_name": "Одеса - Дачне",
+               "occurrence": 1,
+               "from_stop": {
+                   "id": 2863,
+                   "name": "вул.Нафтовиків",
+                   "order": 7,
+                   "arrival_utc": 1788497786,
+                   "departure_utc": 1788497791
+               },
+               "to_stop": {
+                   "id": 2864,
+                   "name": "Хімічна",
+                   "order": 8,
+                   "arrival_utc": 1788497848,
+                   "departure_utc": 1788497848
+               },
+               "period_start_utc": 1788497791,
+               "period_end_utc": 1788497848,
+               "count": 5,
+               "distance_km": 0.43
+           },
+           {
+               "seg_key": "304:2864:2865:1:9",
+               "route_id": 304,
+               "route_name": "Одеса - Дачне",
+               "occurrence": 1,
+               "from_stop": {
+                   "id": 2864,
+                   "name": "Хімічна",
+                   "order": 8,
+                   "arrival_utc": 1788497848,
+                   "departure_utc": 1788497848
+               },
+               "to_stop": {
+                   "id": 2865,
+                   "name": "пров.Майстерний",
+                   "order": 9,
+                   "arrival_utc": 1788497986,
+                   "departure_utc": 1788497995
+               },
+               "period_start_utc": 1788497848,
+               "period_end_utc": 1788497986,
+               "count": 4,
+               "distance_km": 1
+           },
+           {
+               "seg_key": "304:2865:2866:1:10",
+               "route_id": 304,
+               "route_name": "Одеса - Дачне",
+               "occurrence": 1,
+               "from_stop": {
+                   "id": 2865,
+                   "name": "пров.Майстерний",
+                   "order": 9,
+                   "arrival_utc": 1788497986,
+                   "departure_utc": 1788497995
+               },
+               "to_stop": {
+                   "id": 2866,
+                   "name": "вул.Героїв-Комсомольців",
+                   "order": 10,
+                   "arrival_utc": 1788498064,
+                   "departure_utc": 1788498064
+               },
+               "period_start_utc": 1788497995,
+               "period_end_utc": 1788498064,
+               "count": 3,
+               "distance_km": 0.91
+           },
+           {
+               "seg_key": "304:2866:2867:1:11",
+               "route_id": 304,
+               "route_name": "Одеса - Дачне",
+               "occurrence": 1,
+               "from_stop": {
+                   "id": 2866,
+                   "name": "вул.Героїв-Комсомольців",
+                   "order": 10,
+                   "arrival_utc": 1788498064,
+                   "departure_utc": 1788498064
+               },
+               "to_stop": {
+                   "id": 2867,
+                   "name": "Клеверний міст",
+                   "order": 11,
+                   "arrival_utc": 1788498398,
+                   "departure_utc": 1788498417
+               },
+               "period_start_utc": 1788498064,
+               "period_end_utc": 1788498398,
+               "count": 2,
+               "distance_km": 3.86
+           },
+           {
+               "seg_key": "304:2867:2868:1:12",
+               "route_id": 304,
+               "route_name": "Одеса - Дачне",
+               "occurrence": 1,
+               "from_stop": {
+                   "id": 2867,
+                   "name": "Клеверний міст",
+                   "order": 11,
+                   "arrival_utc": 1788498398,
+                   "departure_utc": 1788498417
+               },
+               "to_stop": {
+                   "id": 2868,
+                   "name": "поворот на Нерубайське",
+                   "order": 12,
+                   "arrival_utc": 1788498551,
+                   "departure_utc": 1788498551
+               },
+               "period_start_utc": 1788498417,
+               "period_end_utc": 1788498551,
+               "count": 1,
+               "distance_km": 2.78
+           },
+           {
+               "seg_key": "200:1860:1861:2:0",
+               "route_id": 200,
+               "route_name": "Дачне - Одеса",
+               "occurrence": 2,
+               "from_stop": {
+                   "id": 1860,
+                   "name": "поворот на Нерубайське",
+                   "order": 3,
+                   "arrival_utc": 1788498603,
+                   "departure_utc": 1788498603
+               },
+               "to_stop": {
+                   "id": 1861,
+                   "name": "Клеверний міст",
+                   "order": 4,
+                   "arrival_utc": 1788499691,
+                   "departure_utc": 1788499710
+               },
+               "period_start_utc": 1788498603,
+               "period_end_utc": 1788499691,
+               "assumed_start": true,
+               "count": 2,
+               "distance_km": 2.34
+           },
+           {
+               "seg_key": "200:1861:1862:2:1",
+               "route_id": 200,
+               "route_name": "Дачне - Одеса",
+               "occurrence": 2,
+               "from_stop": {
+                   "id": 1861,
+                   "name": "Клеверний міст",
+                   "order": 4,
+                   "arrival_utc": 1788499691,
+                   "departure_utc": 1788499710
+               },
+               "to_stop": {
+                   "id": 1862,
+                   "name": "вул.Героїв-Комсомольців",
+                   "order": 5,
+                   "arrival_utc": 1788501944,
+                   "departure_utc": 1788501962
+               },
+               "period_start_utc": 1788499710,
+               "period_end_utc": 1788501944,
+               "count": 3,
+               "distance_km": 4.7
+           },
+           {
+               "seg_key": "200:1862:1863:2:2",
+               "route_id": 200,
+               "route_name": "Дачне - Одеса",
+               "occurrence": 2,
+               "from_stop": {
+                   "id": 1862,
+                   "name": "вул.Героїв-Комсомольців",
+                   "order": 5,
+                   "arrival_utc": 1788501944,
+                   "departure_utc": 1788501962
+               },
+               "to_stop": {
+                   "id": 1863,
+                   "name": "пров.Майстерний",
+                   "order": 6,
+                   "arrival_utc": 1788502356,
+                   "departure_utc": 1788502375
+               },
+               "period_start_utc": 1788501962,
+               "period_end_utc": 1788502356,
+               "count": 4,
+               "distance_km": 0.89
+           },
+           {
+               "seg_key": "200:1863:1864:2:3",
+               "route_id": 200,
+               "route_name": "Дачне - Одеса",
+               "occurrence": 2,
+               "from_stop": {
+                   "id": 1863,
+                   "name": "пров.Майстерний",
+                   "order": 6,
+                   "arrival_utc": 1788502356,
+                   "departure_utc": 1788502375
+               },
+               "to_stop": {
+                   "id": 1864,
+                   "name": "Хімічна",
+                   "order": 7,
+                   "arrival_utc": 1788502454,
+                   "departure_utc": 1788502454
+               },
+               "period_start_utc": 1788502375,
+               "period_end_utc": 1788502454,
+               "count": 5,
+               "distance_km": 0.9
+           },
+           {
+               "seg_key": "200:1864:1865:2:4",
+               "route_id": 200,
+               "route_name": "Дачне - Одеса",
+               "occurrence": 2,
+               "from_stop": {
+                   "id": 1864,
+                   "name": "Хімічна",
+                   "order": 7,
+                   "arrival_utc": 1788502454,
+                   "departure_utc": 1788502454
+               },
+               "to_stop": {
+                   "id": 1865,
+                   "name": "вул.Нафтовиків",
+                   "order": 8,
+                   "arrival_utc": 1788502496,
+                   "departure_utc": 1788502496
+               },
+               "period_start_utc": 1788502454,
+               "period_end_utc": 1788502496,
+               "count": 6,
+               "distance_km": 0.61
+           },
+           {
+               "seg_key": "200:1865:1866:2:5",
+               "route_id": 200,
+               "route_name": "Дачне - Одеса",
+               "occurrence": 2,
+               "from_stop": {
+                   "id": 1865,
+                   "name": "вул.Нафтовиків",
+                   "order": 8,
+                   "arrival_utc": 1788502496,
+                   "departure_utc": 1788502496
+               },
+               "to_stop": {
+                   "id": 1866,
+                   "name": "вул.Грушевського",
+                   "order": 9,
+                   "arrival_utc": 1788502554,
+                   "departure_utc": 1788502554
+               },
+               "period_start_utc": 1788502496,
+               "period_end_utc": 1788502554,
+               "count": 7,
+               "distance_km": 0.83
+           },
+           {
+               "seg_key": "200:1866:1867:2:6",
+               "route_id": 200,
+               "route_name": "Дачне - Одеса",
+               "occurrence": 2,
+               "from_stop": {
+                   "id": 1866,
+                   "name": "вул.Грушевського",
+                   "order": 9,
+                   "arrival_utc": 1788502554,
+                   "departure_utc": 1788502554
+               },
+               "to_stop": {
+                   "id": 1867,
+                   "name": "вул.Пестеля",
+                   "order": 10,
+                   "arrival_utc": 1788502590,
+                   "departure_utc": 1788502597
+               },
+               "period_start_utc": 1788502554,
+               "period_end_utc": 1788502590,
+               "count": 8,
+               "distance_km": 0.52
+           },
+           {
+               "seg_key": "200:1867:1868:2:7",
+               "route_id": 200,
+               "route_name": "Дачне - Одеса",
+               "occurrence": 2,
+               "from_stop": {
+                   "id": 1867,
+                   "name": "вул.Пестеля",
+                   "order": 10,
+                   "arrival_utc": 1788502590,
+                   "departure_utc": 1788502597
+               },
+               "to_stop": {
+                   "id": 1868,
+                   "name": "вул.Паркова",
+                   "order": 11,
+                   "arrival_utc": 1788502681,
+                   "departure_utc": 1788502681
+               },
+               "period_start_utc": 1788502597,
+               "period_end_utc": 1788502681,
+               "count": 5,
+               "distance_km": 0.6
+           },
+           {
+               "seg_key": "200:1868:1869:2:8",
+               "route_id": 200,
+               "route_name": "Дачне - Одеса",
+               "occurrence": 2,
+               "from_stop": {
+                   "id": 1868,
+                   "name": "вул.Паркова",
+                   "order": 11,
+                   "arrival_utc": 1788502681,
+                   "departure_utc": 1788502681
+               },
+               "to_stop": {
+                   "id": 1869,
+                   "name": "Автовокзал",
+                   "order": 12,
+                   "arrival_utc": 1788502739,
+                   "departure_utc": 1788502753
+               },
+               "period_start_utc": 1788502681,
+               "period_end_utc": 1788502739,
+               "count": 2,
+               "distance_km": 1.01
+           },
+           {
+               "seg_key": "200:1869:1870:2:9",
+               "route_id": 200,
+               "route_name": "Дачне - Одеса",
+               "occurrence": 2,
+               "from_stop": {
+                   "id": 1869,
+                   "name": "Автовокзал",
+                   "order": 12,
+                   "arrival_utc": 1788502739,
+                   "departure_utc": 1788502753
+               },
+               "to_stop": {
+                   "id": 1870,
+                   "name": "вул.Скісна",
+                   "order": 13,
+                   "arrival_utc": 1788502831,
+                   "departure_utc": 1788502831
+               },
+               "period_start_utc": 1788502753,
+               "period_end_utc": 1788502831,
+               "count": 7,
+               "distance_km": 0.47
+           },
+           {
+               "seg_key": "200:1870:1871:2:10",
+               "route_id": 200,
+               "route_name": "Дачне - Одеса",
+               "occurrence": 2,
+               "from_stop": {
+                   "id": 1870,
+                   "name": "вул.Скісна",
+                   "order": 13,
+                   "arrival_utc": 1788502831,
+                   "departure_utc": 1788502831
+               },
+               "to_stop": {
+                   "id": 1871,
+                   "name": "Привоз",
+                   "order": 14,
+                   "arrival_utc": 1788503322,
+                   "departure_utc": 1788503322
+               },
+               "period_start_utc": 1788502831,
+               "period_end_utc": 1788503322,
+               "count": 4,
+               "distance_km": 2.39
+           },
+           {
+               "seg_key": "200:1871:1872:2:11",
+               "route_id": 200,
+               "route_name": "Дачне - Одеса",
+               "occurrence": 2,
+               "from_stop": {
+                   "id": 1871,
+                   "name": "Привоз",
+                   "order": 14,
+                   "arrival_utc": 1788503322,
+                   "departure_utc": 1788503322
+               },
+               "to_stop": {
+                   "id": 1872,
+                   "name": "Новощіпний ряд",
+                   "order": 15,
+                   "arrival_utc": 1788503407,
+                   "departure_utc": 1788503411
+               },
+               "period_start_utc": 1788503322,
+               "period_end_utc": 1788503407,
+               "count": 2,
+               "distance_km": 0.34
+           },
+           {
+               "seg_key": "366:3559:3560:4:0",
+               "route_id": 366,
+               "route_name": "Одеса - Єгорівка",
+               "occurrence": 4,
+               "from_stop": {
+                   "id": 3559,
+                   "name": "Одеса",
+                   "order": 0,
+                   "arrival_utc": 1788503526,
+                   "departure_utc": 1788503526
+               },
+               "to_stop": {
+                   "id": 3560,
+                   "name": "Автовокзал",
+                   "order": 1,
+                   "arrival_utc": 1788504746,
+                   "departure_utc": 1788504746
+               },
+               "period_start_utc": 1788503526,
+               "period_end_utc": 1788504746,
+               "assumed_start": true,
+               "count": 85,
+               "distance_km": 3.58
+           },
+           {
+               "seg_key": "366:3560:3561:4:1",
+               "route_id": 366,
+               "route_name": "Одеса - Єгорівка",
+               "occurrence": 4,
+               "from_stop": {
+                   "id": 3560,
+                   "name": "Автовокзал",
+                   "order": 1,
+                   "arrival_utc": 1788504746,
+                   "departure_utc": 1788504746
+               },
+               "to_stop": {
+                   "id": 3561,
+                   "name": "вул.Паркова",
+                   "order": 2,
+                   "arrival_utc": 1788505051,
+                   "departure_utc": 1788505071
+               },
+               "period_start_utc": 1788504746,
+               "period_end_utc": 1788505051,
+               "count": 43,
+               "distance_km": 0.94
+           },
+           {
+               "seg_key": "366:3561:3562:4:2",
+               "route_id": 366,
+               "route_name": "Одеса - Єгорівка",
+               "occurrence": 4,
+               "from_stop": {
+                   "id": 3561,
+                   "name": "вул.Паркова",
+                   "order": 2,
+                   "arrival_utc": 1788505051,
+                   "departure_utc": 1788505071
+               },
+               "to_stop": {
+                   "id": 3562,
+                   "name": "вул.Пестеля",
+                   "order": 3,
+                   "arrival_utc": 1788505255,
+                   "departure_utc": 1788505275
+               },
+               "period_start_utc": 1788505071,
+               "period_end_utc": 1788505255,
+               "count": 2,
+               "distance_km": 0.61
+           },
+           {
+               "seg_key": "366:3562:3563:4:3",
+               "route_id": 366,
+               "route_name": "Одеса - Єгорівка",
+               "occurrence": 4,
+               "from_stop": {
+                   "id": 3562,
+                   "name": "вул.Пестеля",
+                   "order": 3,
+                   "arrival_utc": 1788505255,
+                   "departure_utc": 1788505275
+               },
+               "to_stop": {
+                   "id": 3563,
+                   "name": "вул.Грушевського",
+                   "order": 4,
+                   "arrival_utc": 1788505417,
+                   "departure_utc": 1788505438
+               },
+               "period_start_utc": 1788505275,
+               "period_end_utc": 1788505417,
+               "count": 56,
+               "distance_km": 0.5
+           },
+           {
+               "seg_key": "366:3563:3564:4:4",
+               "route_id": 366,
+               "route_name": "Одеса - Єгорівка",
+               "occurrence": 4,
+               "from_stop": {
+                   "id": 3563,
+                   "name": "вул.Грушевського",
+                   "order": 4,
+                   "arrival_utc": 1788505417,
+                   "departure_utc": 1788505438
+               },
+               "to_stop": {
+                   "id": 3564,
+                   "name": "вул.Нафтовиків",
+                   "order": 5,
+                   "arrival_utc": 1788505621,
+                   "departure_utc": 1788505641
+               },
+               "period_start_utc": 1788505438,
+               "period_end_utc": 1788505621,
+               "count": 3,
+               "distance_km": 0.61
+           },
+           {
+               "seg_key": "366:3564:3565:4:5",
+               "route_id": 366,
+               "route_name": "Одеса - Єгорівка",
+               "occurrence": 4,
+               "from_stop": {
+                   "id": 3564,
+                   "name": "вул.Нафтовиків",
+                   "order": 5,
+                   "arrival_utc": 1788505621,
+                   "departure_utc": 1788505641
+               },
+               "to_stop": {
+                   "id": 3565,
+                   "name": "Хімічна",
+                   "order": 6,
+                   "arrival_utc": 1788505784,
+                   "departure_utc": 1788505784
+               },
+               "period_start_utc": 1788505641,
+               "period_end_utc": 1788505784,
+               "count": 2,
+               "distance_km": 0.5
+           },
+           {
+               "seg_key": "366:3565:3566:4:6",
+               "route_id": 366,
+               "route_name": "Одеса - Єгорівка",
+               "occurrence": 4,
+               "from_stop": {
+                   "id": 3565,
+                   "name": "Хімічна",
+                   "order": 6,
+                   "arrival_utc": 1788505784,
+                   "departure_utc": 1788505784
+               },
+               "to_stop": {
+                   "id": 3566,
+                   "name": "пров.Майстерний",
+                   "order": 7,
+                   "arrival_utc": 1788506068,
+                   "departure_utc": 1788506089
+               },
+               "period_start_utc": 1788505784,
+               "period_end_utc": 1788506068,
+               "count": 5,
+               "distance_km": 0.89
+           },
+           {
+               "seg_key": "366:3566:3567:4:7",
+               "route_id": 366,
+               "route_name": "Одеса - Єгорівка",
+               "occurrence": 4,
+               "from_stop": {
+                   "id": 3566,
+                   "name": "пров.Майстерний",
+                   "order": 7,
+                   "arrival_utc": 1788506068,
+                   "departure_utc": 1788506089
+               },
+               "to_stop": {
+                   "id": 3567,
+                   "name": "вул.Героїв-Комсомольців",
+                   "order": 8,
+                   "arrival_utc": 1788506313,
+                   "departure_utc": 1788506333
+               },
+               "period_start_utc": 1788506089,
+               "period_end_utc": 1788506313,
+               "count": 9,
+               "distance_km": 0.72
+           },
+           {
+               "seg_key": "366:3567:3568:4:8",
+               "route_id": 366,
+               "route_name": "Одеса - Єгорівка",
+               "occurrence": 4,
+               "from_stop": {
+                   "id": 3567,
+                   "name": "вул.Героїв-Комсомольців",
+                   "order": 8,
+                   "arrival_utc": 1788506313,
+                   "departure_utc": 1788506333
+               },
+               "to_stop": {
+                   "id": 3568,
+                   "name": "Клеверний міст",
+                   "order": 9,
+                   "arrival_utc": 1788508083,
+                   "departure_utc": 1788508103
+               },
+               "period_start_utc": 1788506333,
+               "period_end_utc": 1788508083,
+               "count": 4,
+               "distance_km": 4.89
+           },
+           {
+               "seg_key": "366:3568:3569:4:9",
+               "route_id": 366,
+               "route_name": "Одеса - Єгорівка",
+               "occurrence": 4,
+               "from_stop": {
+                   "id": 3568,
+                   "name": "Клеверний міст",
+                   "order": 9,
+                   "arrival_utc": 1788508083,
+                   "departure_utc": 1788508103
+               },
+               "to_stop": {
+                   "id": 3569,
+                   "name": "поворот на Нерубайське",
+                   "order": 10,
+                   "arrival_utc": 1788537771,
+                   "departure_utc": 1788537771
+               },
+               "period_start_utc": 1788508103,
+               "period_end_utc": 1788537771,
+               "count": 2,
+               "distance_km": 2.52
+           },
+           {
+               "seg_key": "366:3569:3570:4:10",
+               "route_id": 366,
+               "route_name": "Одеса - Єгорівка",
+               "occurrence": 4,
+               "from_stop": {
+                   "id": 3569,
+                   "name": "поворот на Нерубайське",
+                   "order": 10,
+                   "arrival_utc": 1788537771,
+                   "departure_utc": 1788537771
+               },
+               "to_stop": {
+                   "id": 3570,
+                   "name": "WOG",
+                   "order": 11,
+                   "arrival_utc": 1788538052,
+                   "departure_utc": 1788538052
+               },
+               "period_start_utc": 1788537771,
+               "period_end_utc": 1788538052,
+               "count": 7,
+               "distance_km": 2.68
+           },
+           {
+               "seg_key": "366:3570:3571:4:11",
+               "route_id": 366,
+               "route_name": "Одеса - Єгорівка",
+               "occurrence": 4,
+               "from_stop": {
+                   "id": 3570,
+                   "name": "WOG",
+                   "order": 11,
+                   "arrival_utc": 1788538052,
+                   "departure_utc": 1788538052
+               },
+               "to_stop": {
+                   "id": 3571,
+                   "name": "поворот на Велику Балку",
+                   "order": 12,
+                   "arrival_utc": 1788538185,
+                   "departure_utc": 1788538185
+               },
+               "period_start_utc": 1788538052,
+               "period_end_utc": 1788538185,
+               "count": 3,
+               "distance_km": 1.34
+           },
+           {
+               "seg_key": "366:3571:3572:4:12",
+               "route_id": 366,
+               "route_name": "Одеса - Єгорівка",
+               "occurrence": 4,
+               "from_stop": {
+                   "id": 3571,
+                   "name": "поворот на Велику Балку",
+                   "order": 12,
+                   "arrival_utc": 1788538185,
+                   "departure_utc": 1788538185
+               },
+               "to_stop": {
+                   "id": 3572,
+                   "name": "поворот на Холодну Балку",
+                   "order": 13,
+                   "arrival_utc": 1788538581,
+                   "departure_utc": 1788538581
+               },
+               "period_start_utc": 1788538185,
+               "period_end_utc": 1788538581,
+               "count": 6,
+               "distance_km": 3.52
+           },
+           {
+               "seg_key": "366:3572:3573:4:13",
+               "route_id": 366,
+               "route_name": "Одеса - Єгорівка",
+               "occurrence": 4,
+               "from_stop": {
+                   "id": 3572,
+                   "name": "поворот на Холодну Балку",
+                   "order": 13,
+                   "arrival_utc": 1788538581,
+                   "departure_utc": 1788538581
+               },
+               "to_stop": {
+                   "id": 3573,
+                   "name": "поворот на Дачне",
+                   "order": 14,
+                   "arrival_utc": 1788538724,
+                   "departure_utc": 1788538724
+               },
+               "period_start_utc": 1788538581,
+               "period_end_utc": 1788538724,
+               "count": 2,
+               "distance_km": 1.34
+           },
+           {
+               "seg_key": "280:2607:2608:4:0",
+               "route_id": 280,
+               "route_name": "Єгорівка  - Одеса",
+               "occurrence": 4,
+               "from_stop": {
+                   "id": 2607,
+                   "name": "поворот на Єлизаветівку",
+                   "order": 4,
+                   "arrival_utc": 1788540197,
+                   "departure_utc": 1788540197
+               },
+               "to_stop": {
+                   "id": 2608,
+                   "name": "поворот на Дачне",
+                   "order": 5,
+                   "arrival_utc": 1788540419,
+                   "departure_utc": 1788540419
+               },
+               "period_start_utc": 1788540197,
+               "period_end_utc": 1788540419,
+               "assumed_start": true,
+               "count": 6,
+               "distance_km": 3.71
+           },
+           {
+               "seg_key": "280:2608:2609:4:1",
+               "route_id": 280,
+               "route_name": "Єгорівка  - Одеса",
+               "occurrence": 4,
+               "from_stop": {
+                   "id": 2608,
+                   "name": "поворот на Дачне",
+                   "order": 5,
+                   "arrival_utc": 1788540419,
+                   "departure_utc": 1788540419
+               },
+               "to_stop": {
+                   "id": 2609,
+                   "name": "поворот на Холодну Балку",
+                   "order": 6,
+                   "arrival_utc": 1788540925,
+                   "departure_utc": 1788540925
+               },
+               "period_start_utc": 1788540419,
+               "period_end_utc": 1788540925,
+               "count": 3,
+               "distance_km": 1.17
+           },
+           {
+               "seg_key": "366:3572:3573:6:0",
+               "route_id": 366,
+               "route_name": "Одеса - Єгорівка",
+               "occurrence": 6,
+               "from_stop": {
+                   "id": 3572,
+                   "name": "поворот на Холодну Балку",
+                   "order": 13,
+                   "arrival_utc": 1788541113,
+                   "departure_utc": 1788541113
+               },
+               "to_stop": {
+                   "id": 3573,
+                   "name": "поворот на Дачне",
+                   "order": 14,
+                   "arrival_utc": 1788541240,
+                   "departure_utc": 1788541240
+               },
+               "period_start_utc": 1788541113,
+               "period_end_utc": 1788541240,
+               "assumed_start": true,
+               "count": 9,
+               "distance_km": 0.97
+           }
+       ],
+       "meta": {
+           "rebuild_count": 1
+       },
+       "warnings": [],
+       "generated_at": 1788788704
+   },
+   "tariffs": [
+       {
+           "route_id": 366,
+           "tariff_id": null,
+           "tariff_name": null,
+           "prices": null
+       },
+       {
+           "route_id": 280,
+           "tariff_id": null,
+           "tariff_name": null,
+           "prices": null
+       },
+       {
+           "route_id": 200,
+           "tariff_id": 11,
+           "tariff_name": "Yana (1)",
+           "prices": {
+               "kind": "intercity",
+               "pairs": {
+                   "1857-1858": 10,
+                   "1857-1859": 10,
+                   "1857-1860": 10,
+                   "1857-1861": 10,
+                   "1857-1862": 10,
+                   "1857-1863": 10,
+                   "1857-1864": 10,
+                   "1857-1865": 10,
+                   "1857-1866": 10,
+                   "1857-1867": 10,
+                   "1857-1868": 10,
+                   "1857-1869": 10,
+                   "1857-1870": 10,
+                   "1857-1871": 10,
+                   "1857-1872": 10,
+                   "1857-1873": 10.5,
+                   "1858-1859": 10,
+                   "1858-1860": 10,
+                   "1858-1861": 10,
+                   "1858-1862": 10,
+                   "1858-1863": 10,
+                   "1858-1864": 10,
+                   "1858-1865": 10,
+                   "1858-1866": 10,
+                   "1858-1867": 10,
+                   "1858-1868": 10,
+                   "1858-1869": 10,
+                   "1858-1870": 10,
+                   "1858-1871": 10,
+                   "1858-1872": 10,
+                   "1858-1873": 10,
+                   "1859-1860": 10,
+                   "1859-1861": 10,
+                   "1859-1862": 10,
+                   "1859-1863": 10,
+                   "1859-1864": 7,
+                   "1859-1865": 10,
+                   "1859-1866": 10,
+                   "1859-1867": 10,
+                   "1859-1868": 10,
+                   "1859-1869": 10,
+                   "1859-1870": 10,
+                   "1859-1871": 10,
+                   "1859-1872": 10,
+                   "1859-1873": 10,
+                   "1860-1862": 10,
+                   "1860-1863": 10,
+                   "1860-1864": 10,
+                   "1860-1865": 10,
+                   "1860-1866": 10,
+                   "1860-1867": 10,
+                   "1860-1868": 10,
+                   "1860-1869": 10,
+                   "1860-1870": 10,
+                   "1860-1871": 10,
+                   "1860-1872": 10,
+                   "1860-1873": 10,
+                   "1861-1862": 10,
+                   "1861-1863": 10,
+                   "1861-1864": 10,
+                   "1861-1865": 10,
+                   "1861-1866": 10,
+                   "1861-1867": 10,
+                   "1861-1868": 8.5,
+                   "1861-1869": 10,
+                   "1861-1870": 10,
+                   "1861-1871": 10,
+                   "1861-1872": 10,
+                   "1861-1873": 10,
+                   "1862-1863": 10,
+                   "1862-1864": 10,
+                   "1862-1865": 10,
+                   "1862-1866": 10,
+                   "1862-1867": 10,
+                   "1862-1868": 10,
+                   "1862-1869": 10,
+                   "1862-1870": 10,
+                   "1862-1871": 10,
+                   "1862-1872": 1010,
+                   "1862-1873": 10,
+                   "1863-1866": 10,
+                   "1863-1867": 10,
+                   "1863-1868": 10,
+                   "1863-1869": 10,
+                   "1863-1870": 10,
+                   "1863-1871": 10,
+                   "1863-1872": 10,
+                   "1863-1873": 10,
+                   "1864-1865": 10,
+                   "1864-1866": 10,
+                   "1864-1867": 10,
+                   "1864-1868": 10,
+                   "1864-1869": 10,
+                   "1864-1870": 10,
+                   "1864-1871": 10,
+                   "1864-1872": 10,
+                   "1864-1873": 10,
+                   "1865-1866": 10,
+                   "1865-1867": 10,
+                   "1865-1868": 10,
+                   "1865-1869": 10,
+                   "1865-1870": 10,
+                   "1865-1871": 10,
+                   "1865-1872": 10,
+                   "1865-1873": 10,
+                   "1866-1867": 10,
+                   "1866-1868": 10,
+                   "1866-1869": 10,
+                   "1866-1870": 10,
+                   "1866-1871": 10,
+                   "1866-1872": 10,
+                   "1866-1873": 10,
+                   "1867-1868": 10,
+                   "1867-1869": 10,
+                   "1867-1870": 10,
+                   "1867-1871": 10,
+                   "1867-1872": 10,
+                   "1867-1873": 10,
+                   "1868-1869": 10,
+                   "1868-1870": 10,
+                   "1868-1871": 10,
+                   "1868-1872": 10,
+                   "1868-1873": 10,
+                   "1869-1870": 10,
+                   "1869-1871": 10,
+                   "1869-1872": 10,
+                   "1869-1873": 10,
+                   "1870-1871": 10,
+                   "1870-1872": 10,
+                   "1870-1873": 10,
+                   "1871-1872": 10,
+                   "1871-1873": 10,
+                   "1872-1873": 10,
+                   "1860-1861": 10,
+                   "1863-1864": 10,
+                   "1863-1865": 10
+               }
+           }
+       },
+       {
+           "route_id": 304,
+           "tariff_id": 10,
+           "tariff_name": "Yana (1)",
+           "prices": {
+               "kind": "intercity",
+               "pairs": {
+                   "2855-2871": 170,
+                   "2855-2856": 10,
+                   "2855-2857": 20,
+                   "2855-2859": 40,
+                   "2855-2860": 50,
+                   "2855-2861": 60,
+                   "2855-2862": 70,
+                   "2855-2863": 80,
+                   "2855-2864": 90,
+                   "2855-2865": 100,
+                   "2855-2866": 110,
+                   "2855-2867": 120,
+                   "2855-2868": 130,
+                   "2855-2869": 140,
+                   "2855-2870": 150,
+                   "2856-2857": 10,
+                   "2856-2859": 30,
+                   "2856-2860": 40,
+                   "2856-2861": 50,
+                   "2856-2862": 60,
+                   "2856-2863": 70,
+                   "2856-2864": 80,
+                   "2856-2865": 90,
+                   "2856-2866": 100,
+                   "2856-2867": 110,
+                   "2856-2868": 120,
+                   "2856-2869": 130,
+                   "2856-2870": 140,
+                   "2856-2871": 150,
+                   "2857-2859": 20,
+                   "2857-2860": 30,
+                   "2857-2861": 40,
+                   "2857-2862": 50,
+                   "2857-2863": 60,
+                   "2857-2864": 70,
+                   "2857-2865": 80,
+                   "2857-2866": 90,
+                   "2857-2867": 100,
+                   "2857-2868": 110,
+                   "2857-2869": 120,
+                   "2857-2870": 130,
+                   "2857-2871": 140,
+                   "2859-2860": 40,
+                   "2859-2861": 40,
+                   "2859-2862": 40,
+                   "2859-2863": 40,
+                   "2859-2864": 40,
+                   "2859-2865": 40,
+                   "2859-2866": 40,
+                   "2859-2867": 40,
+                   "2859-2868": 40,
+                   "2859-2869": 4040,
+                   "2859-2870": 40,
+                   "2859-2871": 40,
+                   "2860-2861": 40,
+                   "2860-2862": 40,
+                   "2860-2863": 40,
+                   "2860-2864": 40,
+                   "2860-2865": 40,
+                   "2860-2866": 40,
+                   "2860-2867": 40,
+                   "2860-2868": 40,
+                   "2860-2869": 40,
+                   "2860-2870": 40,
+                   "2860-2871": 40,
+                   "2861-2862": 40,
+                   "2861-2863": 40,
+                   "2861-2864": 40,
+                   "2861-2865": 40,
+                   "2861-2866": 40,
+                   "2861-2867": 40,
+                   "2861-2868": 40,
+                   "2861-2869": 40,
+                   "2861-2870": 40,
+                   "2861-2871": 40,
+                   "2862-2863": 40,
+                   "2862-2864": 40,
+                   "2862-2865": 40,
+                   "2862-2866": 40,
+                   "2862-2867": 40,
+                   "2862-2868": 40,
+                   "2862-2869": 40,
+                   "2862-2870": 40,
+                   "2862-2871": 40,
+                   "2863-2864": 40,
+                   "2863-2865": 40,
+                   "2863-2866": 40,
+                   "2863-2867": 40,
+                   "2863-2868": 40,
+                   "2863-2869": 40,
+                   "2863-2870": 40,
+                   "2863-2871": 40,
+                   "2864-2865": 40,
+                   "2864-2866": 40,
+                   "2864-2867": 40,
+                   "2864-2868": 40,
+                   "2864-2869": 40,
+                   "2864-2870": 40,
+                   "2864-2871": 40,
+                   "2865-2866": 40,
+                   "2865-2867": 40,
+                   "2865-2868": 40,
+                   "2865-2869": 40,
+                   "2865-2870": 40,
+                   "2865-2871": 40,
+                   "2866-2867": 40,
+                   "2866-2868": 40,
+                   "2866-2869": 40,
+                   "2866-2870": 40,
+                   "2866-2871": 40,
+                   "2867-2868": 40,
+                   "2867-2869": 40,
+                   "2867-2870": 40,
+                   "2867-2871": 40,
+                   "2868-2869": 40,
+                   "2868-2870": 40,
+                   "2868-2871": 40,
+                   "2869-2870": 40,
+                   "2869-2871": 40,
+                   "2870-2871": 40,
+                   "2855-3907": 30,
+                   "2856-3907": 30,
+                   "2857-3907": 30,
+                   "2859-3907": 30,
+                   "2860-3907": 30,
+                   "2861-3907": 30,
+                   "2862-3907": 30,
+                   "2863-3907": 30,
+                   "2864-3907": 30,
+                   "2865-3907": 30,
+                   "2866-3907": 30,
+                   "2867-3907": 30,
+                   "2868-3907": 30,
+                   "2869-3907": 30,
+                   "2870-3907": 30,
+                   "2871-3907": 30
+               }
+           }
+       }
+   ]
+}

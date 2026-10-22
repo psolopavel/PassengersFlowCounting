@@ -1,0 +1,550 @@
+{% extends "base.html" %}
+
+{% block title %}Статистика{% endblock %}
+
+{% block page_title %}Статистика{% endblock %}
+
+
+
+{% macro fmt_time(sec) -%}
+
+{%- set s = sec | int -%}
+
+{%- set h = s // 3600 -%}
+
+{%- set m = (s % 3600) // 60 -%}
+
+{%- set ss = s % 60 -%}
+
+{%- if h > 0 -%}{{ h }} год {{ '%02d' % m }} хв{%- elif m > 0 -%}{{ m }} хв {{ '%02d' % ss }} с{%- else -%}{{ ss }} с{%-
+endif -%}
+
+{%- endmacro %}
+
+
+
+{% block content %}
+
+<div class="toolbar">
+
+    <h2>Статистика підрахунків</h2>
+
+    <div class="tabs">
+
+        <a href="/admin/statistics?dim=counter" class="btn btn-sm {% if dim == 'counter' %}btn-primary{% endif %}">За
+            рахувальником</a>
+
+        <a href="/admin/statistics?dim=car" class="btn btn-sm {% if dim == 'car' %}btn-primary{% endif %}">За
+            машиною</a>
+
+    </div>
+
+</div>
+
+
+
+{% if selected_entity %}
+
+{# ── Крок 2: діапазон + результати (окремий екран) ─────────────────── #}
+
+<div class="stats-detail">
+
+    <a href="/admin/statistics?dim={{ dim }}" class="stats-back">
+
+        <span class="stats-back-arrow" aria-hidden="true">←</span>
+
+        <span>До списку {{ 'рахувальників' if dim == 'counter' else 'машин' }}</span>
+
+    </a>
+
+
+
+    <div class="card stats-header-card">
+
+        <div class="stats-header-main">
+
+            <h3 class="stats-entity-title">
+
+                {% if dim == 'car' %}
+
+                Машина: {{ selected_entity.name or selected_entity.imei }}
+
+                {% else %}
+
+                Рахувальник: {{ selected_entity.name or selected_entity.email }}
+
+                {% endif %}
+
+            </h3>
+
+            <p class="muted small stats-entity-sub">
+
+                {% if dim == 'car' %}{{ selected_entity.imei }}{% else %}{{ selected_entity.email }}{% endif %}
+
+            </p>
+
+        </div>
+
+
+
+        <form method="get" action="/admin/statistics" class="stats-period-form" id="statsPeriodForm">
+
+            <input type="hidden" name="dim" value="{{ dim }}">
+
+            <input type="hidden" name="entity" value="{{ entity_id }}">
+
+            <input type="hidden" name="preset" value="" id="statsPresetInput">
+
+
+
+            <div class="stats-period-presets">
+
+                <span class="stats-period-label">Швидкий вибір</span>
+
+                <div class="stats-preset-group">
+
+                    <button type="button"
+                        class="btn btn-sm stats-preset-btn {% if active_preset == 'week' %}btn-primary{% endif %}"
+                        data-preset="week">Тиждень</button>
+
+                    <button type="button"
+                        class="btn btn-sm stats-preset-btn {% if active_preset == '2weeks' %}btn-primary{% endif %}"
+                        data-preset="2weeks">2 тижні</button>
+
+                    <button type="button"
+                        class="btn btn-sm stats-preset-btn {% if active_preset == 'month' %}btn-primary{% endif %}"
+                        data-preset="month">Місяць</button>
+
+                </div>
+
+            </div>
+
+
+
+            <div class="stats-period-custom">
+
+                <span class="stats-period-label">Довільний період</span>
+
+                <div class="stats-date-row">
+
+                    <label class="stats-date-field">
+
+                        <span class="stats-date-lbl">Від</span>
+
+                        <input type="date" name="from" value="{{ from_day }}" class="stats-date-input">
+
+                    </label>
+
+                    <label class="stats-date-field">
+
+                        <span class="stats-date-lbl">До</span>
+
+                        <input type="date" name="to" value="{{ to_day }}" class="stats-date-input">
+
+                    </label>
+
+                    <button type="submit" class="btn btn-primary stats-analyze-btn">Проаналізувати</button>
+
+                </div>
+
+            </div>
+
+        </form>
+
+    </div>
+
+
+
+    {% if result %}
+
+    <div class="stats-summary">
+
+        <div class="card stat-card">
+            <div class="stat-num">{{ result.summary.total }}</div>
+            <div class="stat-lbl">Усього</div>
+        </div>
+
+        <div class="card stat-card">
+            <div class="stat-num">{{ result.summary.ready }}</div>
+            <div class="stat-lbl">Підраховано</div>
+        </div>
+
+        <div class="card stat-card">
+            <div class="stat-num">{{ result.summary.skipped }}</div>
+            <div class="stat-lbl">Пропущено</div>
+        </div>
+
+        <div class="card stat-card">
+            <div class="stat-num">{{ result.summary.in_progress }}</div>
+            <div class="stat-lbl">В процесі</div>
+        </div>
+
+        <div class="card stat-card">
+            <div class="stat-num">{{ result.summary.overdue }}</div>
+            <div class="stat-lbl">Прострочено</div>
+        </div>
+
+        <div class="card stat-card">
+            <div class="stat-num">{{ fmt_time(result.summary.time_spent_sec) }}</div>
+            <div class="stat-lbl">Витрачено часу</div>
+        </div>
+
+    </div>
+
+
+
+    <div class="card stats-table-card" data-stats-table>
+
+        <div class="stats-table-toolbar">
+
+            <input type="search" class="stats-filter-search"
+                placeholder="Пошук: {{ 'машина, IMEI…' if dim == 'counter' else 'оператор, пошта…' }}"
+                data-stats-filter="search">
+
+            <select class="stats-filter-select" data-stats-filter="kind">
+
+                <option value="">Усі типи</option>
+
+                {% for key, label in kind_labels.items() %}
+
+                <option value="{{ key }}">{{ label }}</option>
+
+                {% endfor %}
+
+            </select>
+
+            <select class="stats-filter-select" data-stats-filter="status">
+
+                <option value="">Усі статуси</option>
+
+                {% for key, label in status_labels.items() %}
+
+                <option value="{{ key }}">{{ label }}</option>
+
+                {% endfor %}
+
+            </select>
+
+            <button type="button" class="btn btn-sm" data-stats-filter-reset>Скинути</button>
+
+        </div>
+
+
+
+        <table class="stats-table">
+
+            <thead>
+
+                <tr>
+
+                    <th>
+
+                        <button type="button" class="stats-sort-btn" data-sort="entity" data-default-dir="asc">
+
+                            {{ 'Машина' if dim == 'counter' else 'Оператор' }}
+
+                            <span class="stats-sort-icon" aria-hidden="true"></span>
+
+                        </button>
+
+                    </th>
+
+                    <th>
+
+                        <button type="button" class="stats-sort-btn" data-sort="count_day" data-default-dir="desc">
+
+                            Плановий день
+
+                            <span class="stats-sort-icon" aria-hidden="true"></span>
+
+                        </button>
+
+                    </th>
+
+                    <th>
+
+                        <button type="button" class="stats-sort-btn" data-sort="deadline" data-default-dir="desc">
+
+                            Дедлайн
+
+                            <span class="stats-sort-icon" aria-hidden="true"></span>
+
+                        </button>
+
+                    </th>
+
+                    <th>
+
+                        <button type="button" class="stats-sort-btn" data-sort="done_at" data-default-dir="desc">
+
+                            Виконано
+
+                            <span class="stats-sort-icon" aria-hidden="true"></span>
+
+                        </button>
+
+                    </th>
+
+                    <th>
+
+                        <button type="button" class="stats-sort-btn" data-sort="time_spent" data-default-dir="desc">
+
+                            Витрачено
+
+                            <span class="stats-sort-icon" aria-hidden="true"></span>
+
+                        </button>
+
+                    </th>
+
+                    <th>Тип</th>
+
+                    <th>Статус</th>
+
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+                {% for r in result.rows %}
+
+                <tr data-search="{{ ((r.entity.title or '') ~ ' ' ~ (r.entity.subtitle or '')) | lower }}"
+                    data-kind="{{ r.kind }}" data-status="{{ r.status }}" data-entity="{{ r.entity.title | lower }}"
+                    data-count-day="{{ r.count_day.isoformat() }}" data-deadline="{{ r.deadline.isoformat() }}"
+                    data-done-at="{{ r.done_at.isoformat() if r.done_at else '' }}"
+                    data-time-spent="{{ r.time_spent_sec }}">
+
+                    <td>
+
+                        <div class="entity-cell">
+
+                            {% if dim == 'car' %}
+
+                            {% if r.entity.photo_url %}
+
+                            <img src="{{ r.entity.photo_url }}" alt="" class="avatar avatar-sm">
+
+                            {% else %}
+
+                            <span class="avatar avatar-sm avatar-empty">{{ (r.entity.title)[0] | upper }}</span>
+
+                            {% endif %}
+
+                            {% endif %}
+
+                            <span>
+
+                                {{ r.entity.title }}
+
+                                {% if r.entity.subtitle %}<br><span class="muted small">{{ r.entity.subtitle }}</span>{%
+                                endif %}
+
+                            </span>
+
+                        </div>
+
+                    </td>
+
+                    <td>{{ r.count_day }}</td>
+
+                    <td>{{ r.deadline }}</td>
+
+                    <td>
+
+                        {% if r.done_at %}{{ r.done_at.strftime('%Y-%m-%d %H:%M') }}{% else %}<span
+                            class="muted">—</span>{% endif %}
+
+                        {% if r.overdue %}<span class="pill pill-off">прострочено</span>{% endif %}
+
+                    </td>
+
+                    <td>{{ fmt_time(r.time_spent_sec) }}</td>
+
+                    <td><span class="pill">{{ r.kind_label }}</span></td>
+
+                    <td>
+
+                        {% if r.status == 'ready' %}<span class="pill pill-on">{{ r.status_label }}</span>
+
+                        {% elif r.status == 'skipped' %}
+
+                        <span class="pill pill-off">{{ r.status_label }}</span>
+
+                        <div class="stats-skip-reason muted small">
+
+                            {{ r.skip_comment or 'причина не вказана' }}
+
+                        </div>
+
+                        {% else %}<span class="pill">{{ r.status_label }}</span>{% endif %}
+
+                    </td>
+
+                </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+        <div class="empty hidden" data-stats-filter-empty>За обрані фільтри записів немає.</div>
+
+        {% if not result.rows %}
+
+        <div class="empty">За обраний період підрахунків немає.</div>
+
+        {% endif %}
+
+    </div>
+
+    {% endif %}
+
+</div>
+
+
+
+{% elif entities %}
+
+{# ── Крок 1: вибір сутності ─────────────────────────────────────────── #}
+
+<div data-filterable>
+
+    <div class="filters">
+
+        <input type="search" class="filter-search"
+            placeholder="Пошук: {{ 'ім\'я, пошта…' if dim == 'counter' else 'назва, IMEI, компанія…' }}"
+            data-filter="search" data-match="includes">
+
+        <button type="button" class="btn btn-sm" data-filter-reset>Скинути</button>
+
+    </div>
+
+
+
+    <div class="card">
+
+        <table>
+
+            <thead>
+
+                <tr>
+
+                    {% if dim == 'car' %}
+
+                    <th>Машина</th>
+
+                    <th>Компанія</th>
+
+                    <th>IMEI</th>
+
+                    {% else %}
+
+                    <th>Фото</th>
+
+                    <th>Ім'я</th>
+
+                    <th>Пошта</th>
+
+                    {% endif %}
+
+                    <th></th>
+
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+                {% for e in entities %}
+
+                {% if dim == 'car' %}
+
+                <tr data-search="{{ ((e.name or '') ~ ' ' ~ (e.company_name or '') ~ ' ' ~ (e.imei or '')) | lower }}">
+
+                    <td>{{ e.name or '—' }}</td>
+
+                    <td>{{ e.company_name or '—' }}</td>
+
+                    <td>{{ e.imei }}</td>
+
+                    <td class="text-right">
+
+                        <a href="/admin/statistics?dim=car&entity={{ e.id }}" class="btn btn-sm btn-primary">Переглянути
+                            статистику</a>
+
+                    </td>
+
+                </tr>
+
+                {% else %}
+
+                <tr data-search="{{ ((e.name or '') ~ ' ' ~ (e.email or '')) | lower }}">
+
+                    <td>
+
+                        {% if e.photo_url %}
+
+                        <img src="{{ e.photo_url }}" alt="" class="avatar">
+
+                        {% else %}
+
+                        <span class="avatar avatar-empty">{{ (e.name or e.email)[0] | upper }}</span>
+
+                        {% endif %}
+
+                    </td>
+
+                    <td>{{ e.name or '—' }}</td>
+
+                    <td>{{ e.email }}</td>
+
+                    <td class="text-right">
+
+                        <a href="/admin/statistics?dim=counter&entity={{ e.id }}"
+                            class="btn btn-sm btn-primary">Переглянути статистику</a>
+
+                    </td>
+
+                </tr>
+
+                {% endif %}
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+        <div class="empty hidden" data-filter-empty>Нічого не знайдено.</div>
+
+    </div>
+
+</div>
+
+{% else %}
+
+<div class="card">
+
+    <div class="empty">{{ 'Рахувальників поки немає.' if dim == 'counter' else 'Машин поки немає.' }}</div>
+
+</div>
+
+{% endif %}
+
+{% endblock %}
+
+
+
+{% block scripts %}
+
+<script src="/static/js/filters.js"></script>
+
+{% if selected_entity %}
+
+<script src="/static/js/statistics.js"></script>
+
+{% endif %}
+
+{% endblock %}

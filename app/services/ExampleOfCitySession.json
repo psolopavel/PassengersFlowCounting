@@ -1,0 +1,23 @@
+{
+   "kind": "city",
+   "source_used": "photoAndVideo",
+   "window": {
+      "start_utc": 1788314400,
+      "end_utc": 1788375600
+   },
+   "distance_km": 252.69,
+   "track": {
+      "points": 2818,
+      "distance_km": 252.69,
+      "source": "gps._car_948"
+   },
+   "result": {
+      "in_salon_total": 300
+   },
+   "meta": {
+      "rebuild_count": 0
+   },
+   "warnings": [],
+   "generated_at": 1788702657,
+   "counter_choice": true
+}

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Дашборд{% endblock %}
+{% block page_title %}Дашборд{% endblock %}
+
+{% block content %}
+<div class="form-grid" style="max-width: none;">
+    <div class="card" style="padding: 1.25rem;">
+        <div class="muted">Рахувальників</div>
+        <div style="font-size: 2rem; font-weight: 700;">{{ stats.counters }}</div>
+    </div>
+    <div class="card" style="padding: 1.25rem;">
+        <div class="muted">Усього машин</div>
+        <div style="font-size: 2rem; font-weight: 700;">{{ stats.cars }}</div>
+    </div>
+    <div class="card" style="padding: 1.25rem;">
+        <div class="muted">Активних машин</div>
+        <div style="font-size: 2rem; font-weight: 700;">{{ stats.active_cars }}</div>
+    </div>
+</div>
+{% endblock %}

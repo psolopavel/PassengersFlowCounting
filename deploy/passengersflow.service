@@ -1,0 +1,17 @@
+[Unit]
+Description=Passengers Flow Counting (FastAPI)
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/var/www/PassengersFlowCounting
+Environment="PATH=/var/www/PassengersFlowCounting/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+EnvironmentFile=-/var/www/PassengersFlowCounting/.env
+ExecStart=/var/www/PassengersFlowCounting/.venv/bin/python -m gunicorn app.main:app --workers 2 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:8083
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,54 @@
+# --- Секреты и локальная конфигурация ---
+.env
+.env.*
+!.env.example
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+*.egg-info/
+.eggs/
+dist/
+build/
+pip-wheel-metadata/
+
+# --- Тесты и линтеры ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# --- Логи и runtime-данные ---
+*.log
+app/logs/
+
+# Локальные/генерируемые JSON (примеры ExampleOf*.json в репозитории оставляем)
+app/services/trip_history.json
+
+# --- IDE и редакторы ---
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Cursor (локальные настройки чата/агента)
+.cursor/
+
+# --- ОС ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# --- Прочее локальное ---
+cursor-chat-recovery.sh

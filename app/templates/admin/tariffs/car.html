@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Тарифи · {{ car.name or car.imei }}{% endblock %}
+{% block page_title %}Тарифи машини{% endblock %}
+
+{% block content %}
+<div class="toolbar">
+    <h2>{{ car.name or '—' }} <span class="muted">· {{ car.imei }} · {{ car.company_name }}</span></h2>
+    <a href="/admin/tariffs/" class="btn btn-ghost">← До списку</a>
+</div>
+
+{% if not car.route_kind %}
+<div class="flash flash-error">У машини не задано тип маршрутів (місто/міжмісто). Вкажіть його в картці машини.</div>
+{% endif %}
+
+<div class="tariff-blocks">
+    {% for kind in route_kinds %}
+    {% set active = kind in car.route_kind %}
+    {% set routes = blocks[kind] %}
+    <section class="tariff-block {% if not active %}is-inactive{% endif %}">
+        <div class="tariff-block-head">
+            <h3>{{ route_kind_labels[kind] }}</h3>
+            {% if not active %}<span class="pill pill-off">неактивно</span>{% endif %}
+        </div>
+
+        {% if not active %}
+        {% if routes %}
+        <p class="hint">Машина іншого типу — редагування недоступне. Прив'язані маршрути:</p>
+        <ul class="inactive-route-list">
+            {% for route in routes %}
+            <li>{{ route.name }}</li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <div class="empty">Немає прив'язаних маршрутів цього типу.</div>
+        {% endif %}
+        {% elif not routes %}
+        <div class="empty">Немає прив'язаних маршрутів цього типу.</div>
+        {% else %}
+        <div class="tariff-routes">
+            {% for route in routes %}
+            <div class="tariff-route" id="route-{{ route.id }}">
+                <button type="button" class="tariff-route-head" data-toggle>
+                    <span class="tr-arrow">▸</span>
+                    <span class="tr-name">{{ route.name }}</span>
+                    <span class="tr-meta">
+                        Поточний:
+                        {% if route.current %}<strong>{{ route.current.tariff_name }}</strong>
+                        {% else %}<span class="muted">—</span>{% endif %}
+                    </span>
+                    <span class="tr-meta">
+                        Використовуються:
+                        {% if route.used %}
+                        {% for u in route.used %}<span class="pill">{{ u.name }}</span> {% endfor %}
+                        {% else %}<span class="muted">—</span>{% endif %}
+                    </span>
+                    <span class="tr-meta">Усього тарифів: <strong>{{ route.available_count }}</strong></span>
+                </button>
+
+                <div class="tariff-route-body hidden">
+                    {% if not route.tariffs %}
+                    <div class="empty">
+                        Для цього маршруту ще не створено жодного тарифу.
+                        Тарифи створюються в програмі маршрутів.
+                    </div>
+                    {% elif current_user.can_edit %}
+                    <p class="hint">
+                        Кожен запис діє з указаної дати до дня перед початком наступного.
+                        Останній запис діє «по сьогодні».
+                    </p>
+                    <form method="post" action="/admin/tariffs/{{ car.id }}/route/{{ route.id }}" class="period-form">
+                        <div class="periods" data-periods>
+                            {% for p in route.periods %}
+                            <div class="period-row">
+                                <input type="date" name="start" value="{{ p.from }}" required>
+                                <select name="tariff_id" required>
+                                    {% for t in route.tariffs %}
+                                    <option value="{{ t.id }}" {% if t.id == p.tariff_id %}selected{% endif %}>{{ t.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" class="btn btn-sm btn-danger period-remove" title="Видалити">✕</button>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <template class="period-template">
+                            <div class="period-row">
+                                <input type="date" name="start" required>
+                                <select name="tariff_id" required>
+                                    {% for t in route.tariffs %}
+                                    <option value="{{ t.id }}">{{ t.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" class="btn btn-sm btn-danger period-remove" title="Видалити">✕</button>
+                            </div>
+                        </template>
+                        <div class="period-actions">
+                            <button type="button" class="btn btn-sm period-add">+ Період</button>
+                            <button type="submit" class="btn btn-primary btn-sm">Зберегти</button>
+                        </div>
+                    </form>
+                    {% else %}
+                    {% if route.periods %}
+                    <ul class="period-list">
+                        {% for p in route.periods %}
+                        <li><span class="muted">з {{ p.from }}</span> — {{ p.tariff_name }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <div class="empty">Історію тарифів не задано.</div>
+                    {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </section>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/tariffs.js"></script>
+{% endblock %}

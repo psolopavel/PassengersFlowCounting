@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ subject }}</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f6f8;font-family:Arial,Helvetica,sans-serif;color:#212121;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:24px 0;">
+  <tr>
+    <td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:8px;overflow:hidden;">
+        <tr>
+          <td style="background:#009688;color:#ffffff;padding:20px 24px;font-size:18px;font-weight:bold;">
+            Звіт про підрахунок пасажирів{% if h.is_update %} — версія {{ h.version }}{% endif %}
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:24px;font-size:14px;line-height:1.5;">
+            <p style="margin:0 0 12px;">Добрий день!</p>
+            <p style="margin:0 0 16px;">
+              Надсилаємо звіт про підрахунок пасажирів за <strong>{{ h.day|ua_date }}</strong>
+              по транспортному засобу <strong>{{ h.car_name }}</strong>{% if h.company %} ({{ h.company }}){% endif %}.
+            </p>
+
+            {% if h.is_update %}
+            <p style="margin:0 0 16px;padding:12px 14px;background:#ffebee;border-left:4px solid #c62828;color:#b71c1c;">
+              {{ h.update_note }}
+            </p>
+            {% endif %}
+
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 16px;">
+              <tr>
+                <td style="padding:8px 10px;border-bottom:1px solid #eeeeee;color:#616161;">Тип маршруту</td>
+                <td style="padding:8px 10px;border-bottom:1px solid #eeeeee;text-align:right;">{{ h.kind_label }}</td>
+              </tr>
+              {% if intercity %}
+              <tr>
+                <td style="padding:8px 10px;border-bottom:1px solid #eeeeee;color:#616161;">Ходок за день</td>
+                <td style="padding:8px 10px;border-bottom:1px solid #eeeeee;text-align:right;">{{ report.run_count }}</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 10px;border-bottom:1px solid #eeeeee;color:#616161;">Час у роботі</td>
+                <td style="padding:8px 10px;border-bottom:1px solid #eeeeee;text-align:right;">{{ report.work_sec|ua_duration }}</td>
+              </tr>
+              {% endif %}
+              <tr>
+                <td style="padding:8px 10px;border-bottom:1px solid #eeeeee;color:#616161;">Пробіг</td>
+                <td style="padding:8px 10px;border-bottom:1px solid #eeeeee;text-align:right;">{{ report.distance_km|ua_num }} км</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 10px;border-bottom:1px solid #eeeeee;color:#616161;">{% if intercity %}Пасажирів (посадок){% else %}Пасажирів за день{% endif %}</td>
+                <td style="padding:8px 10px;border-bottom:1px solid #eeeeee;text-align:right;font-size:16px;"><strong>{{ report.passengers|ua_num(0) }}</strong></td>
+              </tr>
+              {% if intercity %}
+              <tr>
+                <td style="padding:8px 10px;border-bottom:1px solid #eeeeee;color:#616161;">Розрахована виручка</td>
+                <td style="padding:8px 10px;border-bottom:1px solid #eeeeee;text-align:right;font-size:16px;color:#00796b;"><strong>{{ report.revenue|ua_money }}</strong></td>
+              </tr>
+              {% endif %}
+            </table>
+
+            <p style="margin:0 0 12px;"><strong>Що підраховано.</strong> {{ h.counted_description }}</p>
+            {% if intercity %}
+            <p style="margin:0 0 12px;color:#616161;font-size:13px;"><strong>Як розраховано виручку.</strong> {{ revenue_description }}</p>
+            {% if report.unpriced_pax %}
+            <p style="margin:0 0 12px;color:#b71c1c;font-size:13px;">
+              Для {{ report.unpriced_pax }} пас. не знайдено ціну проїзду в тарифі — їх не враховано у виручці.
+            </p>
+            {% endif %}
+            {% endif %}
+
+            <p style="margin:16px 0 0;">
+              Детальний звіт{% if intercity %} (ходки, поїздки з цінами, відрізки між зупинками){% endif %} —
+              у вкладеному файлі <strong>{{ filename }}</strong>.
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:16px 24px;background:#fafafa;color:#757575;font-size:12px;line-height:1.4;">
+            Лист сформовано автоматично {{ h.generated_at|ua_datetime }}.{% if not reply_to %} Будь ласка, не відповідайте на нього.{% endif %}
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>

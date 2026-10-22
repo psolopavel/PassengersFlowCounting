@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="uk">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>POC · Синхронні плеєри (@netless/sync-player)</title>
+
+  <!-- video.js (глобальний videojs) -->
+  <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
+  <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 16px;
+      font: 14px/1.4 system-ui, Segoe UI, Roboto, sans-serif;
+      background: #14171c;
+      color: #e6e9ef;
+    }
+
+    h1 {
+      font-size: 18px;
+      margin: 0 0 4px;
+    }
+
+    .muted {
+      color: #8b93a2;
+    }
+
+    .bar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin: 12px 0;
+    }
+
+    button,
+    select {
+      background: #232833;
+      color: #e6e9ef;
+      border: 1px solid #333a47;
+      border-radius: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    button:hover {
+      background: #2b313d;
+    }
+
+    button.primary {
+      background: #3b82f6;
+      border-color: #3b82f6;
+      color: #fff;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin: 12px 0;
+    }
+
+    .cell {
+      position: relative;
+      background: #000;
+      border: 1px solid #262c36;
+      border-radius: 10px;
+      overflow: hidden;
+      aspect-ratio: 16/9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .cell .label {
+      position: absolute;
+      top: 6px;
+      left: 8px;
+      z-index: 5;
+      background: rgba(0, 0, 0, .55);
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      letter-spacing: .3px;
+    }
+
+    .cell .st {
+      position: absolute;
+      bottom: 6px;
+      left: 8px;
+      z-index: 5;
+      background: rgba(0, 0, 0, .55);
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .cell .slot {
+      width: 100%;
+      height: 100%;
+    }
+
+    .cell video,
+    .cell img.seq {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #000;
+    }
+
+    .cell .black {
+      position: absolute;
+      inset: 0;
+      background: #000;
+      z-index: 3;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #556;
+      font-size: 12px;
+    }
+
+    .hidden {
+      visibility: hidden;
+    }
+
+    .seekwrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    input[type=range] {
+      width: 100%;
+    }
+
+    table.dbg {
+      border-collapse: collapse;
+      width: 100%;
+      font-variant-numeric: tabular-nums;
+    }
+
+    table.dbg th,
+    table.dbg td {
+      border: 1px solid #2a303b;
+      padding: 5px 8px;
+      text-align: left;
+    }
+
+    table.dbg th {
+      background: #1b2028;
+      color: #9aa3b2;
+      font-weight: 600;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 1px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+    }
+
+    .p-playing {
+      background: #14532d;
+      color: #86efac;
+    }
+
+    .p-buffering {
+      background: #7c2d12;
+      color: #fdba74;
+    }
+
+    .p-pause,
+    .p-ready {
+      background: #334155;
+      color: #cbd5e1;
+    }
+
+    .p-ended {
+      background: #3f1d38;
+      color: #f0abfc;
+    }
+
+    kbd {
+      background: #232833;
+      border: 1px solid #333a47;
+      border-bottom-width: 2px;
+      border-radius: 5px;
+      padding: 1px 6px;
+      font-size: 12px;
+    }
+
+    .hint {
+      font-size: 12px;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>POC — синхронні плеєри на <code>@netless/sync-player</code></h1>
+  <div class="muted">
+    Перевіряємо для нашої задачі: video.js + raw &lt;video&gt; + не-відео атом (фото) в одній синхро-групі,
+    чорний екран у пропусках (OffsetPlayer), швидкість &gt;1, утримання при буферизації.
+  </div>
+
+  <div class="bar">
+    <span class="muted">Джерело:</span>
+    <select id="mode">
+      <option value="sample">sample — короткі публічні mp4 (працює завжди)</option>
+      <option value="real">real — реальні URL vcpdata (потрібні CORS/Range)</option>
+    </select>
+    <button id="load" class="primary">Завантажити плеєри</button>
+    <span id="loadstate" class="muted"></span>
+  </div>
+
+  <div class="grid">
+    <div class="cell" id="cellA">
+      <div class="label">Cam A · video.js (native mp4)</div>
+      <div class="black hidden" data-black>очікування…</div>
+      <div class="slot" data-slot></div>
+      <div class="st" data-st>—</div>
+    </div>
+    <div class="cell" id="cellB">
+      <div class="label">Cam B · raw &lt;video&gt; · offset 120с (чорний старт)</div>
+      <div class="black hidden" data-black>чорний екран</div>
+      <div class="slot" data-slot></div>
+      <div class="st" data-st>—</div>
+    </div>
+    <div class="cell" id="cellP">
+      <div class="label">Photo · прототип (&lt;img&gt;, не fast-image-sequence)</div>
+      <div class="black hidden" data-black>немає фото</div>
+      <img id="imgP" class="seq" alt="" />
+      <div class="st" data-st>—</div>
+    </div>
+    <div class="cell" style="align-items:stretch; padding:10px;">
+      <div style="width:100%;">
+        <div class="label" style="position:static; background:none; padding:0 0 6px;">Debug</div>
+        <table class="dbg">
+          <thead>
+            <tr>
+              <th>Атом</th>
+              <th>Статус</th>
+              <th>currentTime</th>
+              <th>visible</th>
+            </tr>
+          </thead>
+          <tbody id="dbgbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="bar seekwrap">
+    <button id="playpause" class="primary">▶︎ / ⏸</button>
+    <button data-seek="-1000">◀ −1с</button>
+    <button data-seek="1000">+1с ▶</button>
+    <span class="muted">Швидкість:</span>
+    <button data-rate="down">↓</button>
+    <span id="rate" style="min-width:44px; text-align:center;">1×</span>
+    <button data-rate="up">↑</button>
+  </div>
+
+  <div class="bar seekwrap">
+    <span id="tcur" class="muted" style="min-width:70px;">0.0с</span>
+    <input type="range" id="seek" min="0" max="1000" value="0" step="1" />
+    <span id="tdur" class="muted" style="min-width:70px;">/ 0.0с</span>
+  </div>
+
+  <div class="bar hint muted">
+    Клавіші: <kbd>Space</kbd> пауза · <kbd>←</kbd>/<kbd>→</kbd> ±1с · <kbd>↑</kbd>/<kbd>↓</kbd> швидкість.
+    Порада: у режимі <b>sample</b> синхрон видно одразу (короткі кліпи). Перемотай до ~120с щоб побачити,
+    як чорна Cam B «оживає», поки Cam A грає далі.
+  </div>
+
+  <!-- Import map: усі залежності sync-player локально (без esm.sh / CDN) -->
+  <script type="importmap">
+  {
+    "imports": {
+      "eventemitter3": "/static/vendor/sync-player/eventemitter3.mjs",
+      "side-effect-manager": "/static/vendor/sync-player/side-effect-manager.es.js",
+      "white-web-sdk": "/static/vendor/sync-player/white-web-sdk-stub.mjs"
+    }
+  }
+  </script>
+
+  <script type="module">
+    import {
+      AtomPlayer, VideoPlayer, NativeVideoPlayer, OffsetPlayer, SyncPlayer,
+    } from "/static/vendor/sync-player/sync-player.mjs";
+
+    // SyncPlayerStatus у бібліотеці — це `const enum` зі СТРОКОВИМИ значеннями,
+    // тому в рантаймі об'єкта немає. Використовуємо ті самі рядки напряму.
+    const S = { Ready: "Ready", Pause: "Pause", Buffering: "Buffering", Playing: "Playing", Ended: "Ended" };
+
+    // ------- джерела медіа -------
+    const SAMPLE = {
+      a: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+      b: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+      photos: [0, 1, 2, 3, 4, 5].map(i => ({ t: i * 30000, url: `https://picsum.photos/seed/poc${i}/640/360` })),
+    };
+    // Реальні приклади з Untitled-5.json (камера 7NVTT). Потребують CORS/Range на vcpdata.
+    const V = "https://vcpdata.net.ua/activeCamersOnTooday/stream.php?file=";
+    const P = "https://vcpdata.net.ua/activeCamersOnTooday/photo_stream.php?file=";
+    const REAL = {
+      a: V + "20260817_1786914983_1786915536.mp4&car=7NVTT",
+      b: V + "20260817_1786915722_1786916915.mp4&car=7NVTT",
+      photos: [37, 40, 43, 46, 49, 52, 55, 58].map((s, i) => ({
+        t: i * 15000,
+        url: P + `2026_08_17_23_59_${s}.jpg&car=7NVTT%2F20260817`,
+      })),
+    };
+
+    const el = (id) => document.getElementById(id);
+    const fmt = (ms) => (ms / 1000).toFixed(1) + "с";
+
+    // ---------- кастомний фото-атом (rAF-годинник як у TickPlayer + рендер) ----------
+    class PhotoAtom extends AtomPlayer {
+      constructor({ img, blackEl, photos, duration, name }) {
+        super({ name });
+        this._img = img; this._black = blackEl; this._photos = photos;
+        this.duration = duration;
+        this._raf = 0; this._running = false;
+        this._baseTs = 0; this._baseTime = 0;
+        this._render(0);
+      }
+      _render(ms) {
+        let url = null;
+        for (const p of this._photos) { if (p.t <= ms) url = p.url; else break; }
+        if (url) {
+          if (this._img.getAttribute("src") !== url) this._img.src = url;
+          this._img.classList.remove("hidden");
+          this._black.classList.add("hidden");
+          this.visible = true;
+        } else {
+          this._img.classList.add("hidden");
+          this._black.classList.remove("hidden");
+          this.visible = false;
+        }
+      }
+      _tick() {
+        this.currentTime = (Date.now() - this._baseTs) * this.playbackRate + this._baseTime;
+        this._render(this.currentTime);
+        if (this.currentTime >= this.duration) { this.stop(); return; }
+        this._raf = requestAnimationFrame(() => this._tick());
+      }
+      _startClock(from) {
+        cancelAnimationFrame(this._raf);
+        this._baseTs = Date.now(); this._baseTime = from; this._running = true;
+        this._tick();
+      }
+      _stopClock() { cancelAnimationFrame(this._raf); this._raf = 0; this._running = false; }
+      async readyImpl() { this._stopClock(); }
+      async playImpl() { this._startClock(this.currentTime); this.status = S.Playing; }
+      async pauseImpl() { this._stopClock(); }
+      async stopImpl() { this._stopClock(); this.currentTime = this.duration; }
+      async seekImpl(ms) {
+        this.currentTime = ms; this._render(ms);
+        if (this._running) this._startClock(ms);
+        else { this._baseTime = ms; }
+      }
+      setPlaybackRateImpl() {
+        if (this._running) { this._baseTs = Date.now(); this._baseTime = this.currentTime; }
+      }
+    }
+
+    // ---------- монтаж синхро-групи ----------
+    const RATES = [0.5, 1, 2, 4, 8, 16];
+    let rateIdx = 1;
+    let sync = null;         // композитний AtomPlayer
+    let leaves = [];         // [{atom, cell}] для дебагу
+    let vjs = null;          // instance video.js (щоб знищувати при перезавантаженні)
+    let gen = 0;             // поточне покоління збірки (щоб зупиняти старий rAF-loop)
+
+    function bindVisibility(atom, cell) {
+      const blk = cell.querySelector("[data-black]");
+      const apply = () => blk.classList.toggle("hidden", atom.visible);
+      atom.on("visibilitychange", apply);
+      apply();
+    }
+
+    /** video.js 8: для звичайного mp4/stream.php потрібен native HTML5, інакше VHS дає CODE:4. */
+    async function initVideoJs(slot, url, { crossOrigin = false } = {}) {
+      const attrs = [
+        'class="video-js vjs-default-skin"',
+        "playsinline",
+        'preload="auto"',
+        "muted",
+      ];
+      if (crossOrigin) attrs.push('crossorigin="anonymous"');
+      slot.innerHTML = `<video ${attrs.join(" ")}></video>`;
+      const videoEl = slot.firstElementChild;
+      const player = videojs(videoEl, {
+        controls: false,
+        preload: "auto",
+        muted: true,
+        playsinline: true,
+        fluid: false,
+        fill: true,
+        techOrder: ["html5"],
+        // Не даємо VHS перехоплювати progressive mp4 (vcpdata stream.php).
+        html5: {
+          vhs: { overrideNative: false },
+          nativeVideoTracks: true,
+          nativeAudioTracks: true,
+        },
+      });
+      await new Promise((resolve) => player.ready(resolve));
+      player.src({ src: url, type: "video/mp4" });
+      player.load();
+      return player;
+    }
+
+    async function build() {
+      el("loadstate").textContent = "завантаження…";
+      const myGen = ++gen;   // нове покоління — старий debug-loop зупиниться
+      // прибирання попередньої групи
+      if (sync) { try { sync.destroy(); } catch { } sync = null; }
+      if (vjs) { try { vjs.dispose(); } catch { } vjs = null; leaves = []; }
+
+      const src = el("mode").value === "real" ? REAL : SAMPLE;
+      const isReal = el("mode").value === "real";
+
+      // Cam A — video.js через штатний VideoPlayer
+      const slotA = el("cellA").querySelector("[data-slot]");
+      vjs = await initVideoJs(slotA, src.a, { crossOrigin: isReal });
+      const camA = new VideoPlayer({ video: vjs, name: "camA(videojs)" });
+
+      // Cam B — raw <video> через NativeVideoPlayer, з чорним стартом 120с (OffsetPlayer)
+      const slotB = el("cellB").querySelector("[data-slot]");
+      slotB.innerHTML = `<video playsinline preload="auto" muted${isReal ? ' crossorigin="anonymous"' : ""}></video>`;
+      const videoBEl = slotB.firstElementChild;
+      videoBEl.src = src.b;
+      const camBraw = new NativeVideoPlayer({ video: videoBEl, name: "camB(raw)" });
+      const camB = new OffsetPlayer({ offset: 120000, player: camBraw, name: "camB+offset" });
+
+      // Photo — кастомний атом; тривалість беремо приблизно як у Cam A (або 180с у sample)
+      const photoDur = (el("mode").value === "real") ? 180000 : 200000;
+      const photo = new PhotoAtom({
+        img: el("imgP"), blackEl: el("cellP").querySelector("[data-black]"),
+        photos: src.photos, duration: photoDur, name: "photo(atom)",
+      });
+
+      sync = new SyncPlayer({ players: [camA, camB, photo] });
+
+      // видимість чорних плашок
+      bindVisibility(camB, el("cellB"));
+      bindVisibility(photo, el("cellP"));
+      // camA завжди видима у цьому POC
+      el("cellA").querySelector("[data-black]").classList.add("hidden");
+
+      leaves = [
+        { atom: camA, cell: el("cellA") },
+        { atom: camB, cell: el("cellB") },
+        { atom: photo, cell: el("cellP") },
+      ];
+
+      // ретранслюємо швидкість
+      sync.setPlaybackRate(RATES[rateIdx]);
+
+      wireDebug(myGen);
+      el("loadstate").textContent = "готово ✓";
+    }
+
+    const buildSafe = () => build().catch((err) => {
+      console.error("build failed:", err);
+      el("loadstate").textContent = "Помилка: " + (err.message || err);
+    });
+
+    // ---------- дебаг/оновлення UI ----------
+    const pillCls = { Playing: "p-playing", Buffering: "p-buffering", Pause: "p-pause", Ready: "p-ready", Ended: "p-ended" };
+    function statusName(v) { return String(v); }  // status у бібліотеці вже рядок
+
+    function wireDebug(myGen) {
+      const body = el("dbgbody");
+      body.innerHTML = "";
+      const rows = leaves.map(({ atom }) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${atom.name}</td><td class="s"></td><td class="t"></td><td class="v"></td>`;
+        body.appendChild(tr);
+        return { atom, tr };
+      });
+      // + композит
+      const trc = document.createElement("tr");
+      trc.innerHTML = `<td><b>SYNC</b></td><td class="s"></td><td class="t"></td><td class="v"></td>`;
+      body.appendChild(trc);
+      rows.push({ atom: sync, tr: trc });
+
+      const paint = () => {
+        for (const { atom, tr } of rows) {
+          const sn = statusName(atom.status);
+          tr.querySelector(".s").innerHTML = `<span class="pill ${pillCls[sn] || ''}">${sn}</span>`;
+          tr.querySelector(".t").textContent = fmt(atom.currentTime);
+          tr.querySelector(".v").textContent = atom.visible ? "так" : "—";
+        }
+        // на-cell статуси
+        for (const { atom, cell } of leaves) {
+          cell.querySelector("[data-st]").textContent = statusName(atom.status) + " · " + fmt(atom.currentTime);
+        }
+        // seek/тривалість
+        const dur = sync.duration || 0, cur = sync.currentTime || 0;
+        el("tcur").textContent = fmt(cur);
+        el("tdur").textContent = "/ " + fmt(dur);
+        const seek = el("seek");
+        if (document.activeElement !== seek) {
+          seek.max = String(Math.max(1, Math.floor(dur)));
+          seek.value = String(Math.floor(cur));
+        }
+      };
+      const loop = () => { if (sync && myGen === gen) { paint(); requestAnimationFrame(loop); } };
+      loop();
+    }
+
+    // ---------- керування ----------
+    function setRate(idx) {
+      rateIdx = Math.max(0, Math.min(RATES.length - 1, idx));
+      el("rate").textContent = RATES[rateIdx] + "×";
+      if (sync) sync.setPlaybackRate(RATES[rateIdx]);
+    }
+    async function togglePlay() {
+      if (!sync) return;
+      if (sync.status === S.Playing || sync.status === S.Buffering) await sync.pause();
+      else await sync.play();
+    }
+    async function seekBy(ms) {
+      if (!sync) return;
+      const t = Math.max(0, Math.min(sync.duration - 1, sync.currentTime + ms));
+      await sync.seek(t);
+    }
+
+    el("load").addEventListener("click", buildSafe);
+    el("playpause").addEventListener("click", togglePlay);
+    document.querySelectorAll("[data-seek]").forEach(b =>
+      b.addEventListener("click", () => seekBy(parseInt(b.dataset.seek, 10))));
+    document.querySelectorAll("[data-rate]").forEach(b =>
+      b.addEventListener("click", () => setRate(b.dataset.rate === "up" ? rateIdx + 1 : rateIdx - 1)));
+    el("seek").addEventListener("input", (e) => sync && sync.seek(parseInt(e.target.value, 10)));
+
+    window.addEventListener("keydown", (e) => {
+      if (["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName)) return;
+      if (e.code === "Space") { e.preventDefault(); togglePlay(); }
+      else if (e.code === "ArrowLeft") { e.preventDefault(); seekBy(-1000); }
+      else if (e.code === "ArrowRight") { e.preventDefault(); seekBy(1000); }
+      else if (e.code === "ArrowUp") { e.preventDefault(); setRate(rateIdx + 1); }
+      else if (e.code === "ArrowDown") { e.preventDefault(); setRate(rateIdx - 1); }
+    });
+
+    // автозапуск у sample-режимі за ?mode=
+    const qp = new URLSearchParams(location.search);
+    if (qp.get("mode") === "real") el("mode").value = "real";
+    setRate(1);
+  </script>
+</body>
+
+</html>

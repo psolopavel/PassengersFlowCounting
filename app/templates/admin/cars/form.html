@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% set editing = mode == 'edit' %}
+{% block title %}{{ 'Змінити машину' if editing else 'Нова машина' }}{% endblock %}
+{% block page_title %}{{ 'Змінити машину' if editing else 'Нова машина' }}{% endblock %}
+
+{% block content %}
+<form class="form-card" method="post"
+    action="{{ ('/admin/cars/' ~ car.id ~ '/edit') if editing else '/admin/cars/new' }}">
+    <div class="form-grid">
+        <div class="field">
+            <label for="name">Назва машини</label>
+            <input type="text" id="name" name="name" required maxlength="255" value="{{ car.name if car else '' }}">
+        </div>
+        <div class="field">
+            <label for="imei">IMEI</label>
+            <input type="text" id="imei" name="imei" required value="{{ car.imei if car else '' }}">
+        </div>
+        <div class="field">
+            <label for="owner_search">Власник (обліковий запис)</label>
+            <div class="searchable-select" data-required="true">
+                <input type="hidden" id="owner_user_id" name="owner_user_id"
+                    value="{{ car.owner_user_id if car and car.owner_user_id else '' }}">
+                <input type="text" id="owner_search" class="searchable-select-search"
+                    placeholder="Почніть вводити ім'я, email або логін…" autocomplete="off" spellcheck="false"
+                    aria-autocomplete="list" aria-controls="owner_options" aria-expanded="false">
+                <ul id="owner_options" class="searchable-select-list hidden" role="listbox">
+                    {% for owner in owners %}
+                    <li class="searchable-select-option" role="option" data-value="{{ owner.id }}"
+                        data-search="{{ (owner.display_name ~ ' ' ~ owner.email ~ ' ' ~ owner.username) | lower }}" {%
+                        if car and car.owner_user_id==owner.id %}data-selected="true" {% endif %}>
+                        {{ owner.display_name }}{% if owner.email %} ({{ owner.email }}){% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <small class="hint">У списку {{ owners | length }} облікових записів — введіть текст для пошуку.</small>
+            {% if car and car.owner_user_id and not (owners | selectattr('id', 'equalto', car.owner_user_id) | list) %}
+            <small class="muted">Поточний власник (id={{ car.owner_user_id }}) не знайдений серед активних облікових
+                записів — оберіть заново.</small>
+            {% endif %}
+        </div>
+
+        <div class="field full">
+            <label>Камери</label>
+            <div class="camera-list" id="camera-list">
+                {% for cam in cameras %}
+                <div class="camera-row">
+                    <input type="text" name="camera_id" value="{{ cam.id if cam is mapping else cam }}"
+                        placeholder="ID камери" required maxlength="32">
+                    <select name="camera_orientation" title="Орієнтація">
+                        {% set orient = cam.orientation if cam is mapping else 'landscape' %}
+                        {% for o in camera_orientations %}
+                        <option value="{{ o }}" {% if orient == o %}selected{% endif %}>
+                            {{ camera_orientation_labels[o] }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" class="btn btn-sm btn-danger camera-remove" title="Видалити">✕</button>
+                </div>
+                {% endfor %}
+            </div>
+            <button type="button" class="btn btn-sm camera-add" id="camera-add">+ Нова камера</button>
+            <small class="hint">Орієнтація потрібна для розкладки плеєрів на платформі підрахунку.</small>
+        </div>
+
+        <div class="field">
+            <label for="count_source">Джерело підрахунку</label>
+            <select id="count_source" name="count_source">
+                {% for s in count_sources %}
+                <option value="{{ s }}" {% if car and car.count_source==s %}selected{% elif not car and s=='photo'
+                    %}selected{% endif %}>{{ count_source_labels[s] }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="field{% if not car or car.count_source != 'photoAndVideo' %} hidden{% endif %}" id="source_priority_wrap">
+            <label for="source_priority">Пріоритет відображення</label>
+            <select id="source_priority" name="source_priority">
+                {% for p in source_priorities %}
+                <option value="{{ p }}" {% if car and (car.source_priority or 'video') == p %}selected{% elif not car and p == 'video' %}selected{% endif %}>
+                    {{ source_priority_labels[p] }}
+                </option>
+                {% endfor %}
+            </select>
+            <small class="hint">Лише для «Фото та відео»: що показувати в плеєрі спочатку.</small>
+        </div>
+        <div class="field">
+            <label>Рейтинг складності</label>
+            <div class="star-rating" data-input="difficulty_rating">
+                <input type="hidden" id="difficulty_rating" name="difficulty_rating"
+                    value="{{ car.difficulty_rating if car and car.difficulty_rating else '' }}">
+                <div class="stars" role="radiogroup" aria-label="Складність">
+                    {% for i in range(1, 6) %}
+                    <button type="button" class="star-btn" data-value="{{ i }}" aria-label="{{ i }} зірок">★</button>
+                    {% endfor %}
+                </div>
+                <button type="button" class="star-clear muted">Скинути</button>
+            </div>
+        </div>
+
+        <div class="field full">
+            <label>Тип маршрутів машини</label>
+            <div class="checks">
+                {% for t in route_kinds %}
+                <label class="check">
+                    <input type="radio" name="route_kind" value="{{ t }}" {% if car and t in car.route_kind %}checked{%
+                        endif %}>
+                    {{ route_kind_labels[t] }}
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="field full">
+            <label class="check">
+                <input type="checkbox" name="route_kind_chose" value="true" {% if car and car.route_kind_chose
+                    %}checked{% endif %}>
+                Тип маршруту обирає рахувальник (місто / міжмісто)
+            </label>
+            <small class="hint">Якщо увімкнено — у панелі рахувальник може змінити тип перед підрахунком.</small>
+        </div>
+
+        {% set is_intercity = car and 'intercity' in (car.route_kind or '') %}
+        <div class="field{% if not is_intercity %} hidden{% endif %}" id="max_people_wrap">
+            <label for="max_people_count_in_car">Макс. людей у салоні (міжмісто)</label>
+            <input type="number" id="max_people_count_in_car" name="max_people_count_in_car"
+                min="1" max="999" step="1"
+                value="{{ car.max_people_count_in_car if car and car.max_people_count_in_car else 100 }}">
+            <small class="hint">Ліміт для поля підрахунку на платформі міжміста.</small>
+        </div>
+
+        <div class="field">
+            <label class="check">
+                <input type="checkbox" name="is_active" value="true" {% if (car and car.is_active) or not car
+                    %}checked{% endif %}>
+                Активна для підрахунку
+            </label>
+        </div>
+        <div class="field">
+            <label class="check">
+                <input type="checkbox" name="alarms_only" value="true" {% if car and car.alarms_only %}checked{% endif
+                    %}>
+                Рахувати лише за тривогами
+            </label>
+        </div>
+        <div class="field">
+            <label class="check">
+                <input type="checkbox" name="auto_gap_filling" value="true" {% if car and car.auto_gap_filling
+                    %}checked{% endif %}>
+                Автоматичне заповнення пропусків треку
+            </label>
+        </div>
+        <div class="field">
+            <label class="check">
+                <input type="checkbox" name="non_shedule_count" value="true" {% if car and car.non_shedule_count %}checked{% endif %}>
+                Підрахунок сьогодні без очікування кінця розкладу
+            </label>
+            <small class="hint">Якщо увімкнено — рахувальник може рахувати машину за поточний день одразу, не чекаючи завершення робочого дня.</small>
+        </div>
+        <div class="field full">
+            <label>Розклад роботи (UTC+3)</label>
+            <div class="schedule-row">
+                <div class="schedule-field">
+                    <label for="schedule_start">Початок</label>
+                    <input type="time" id="schedule_start" name="schedule_start"
+                        value="{{ schedule_start | default('06:00') }}" step="60">
+                </div>
+                <div class="schedule-field">
+                    <label for="schedule_end">Кінець</label>
+                    <input type="time" id="schedule_end" name="schedule_end"
+                        value="{{ schedule_end | default('22:00') }}" step="60">
+                </div>
+            </div>
+        </div>
+
+        <div class="field full">
+            <label for="comment">Коментар</label>
+            <textarea id="comment" name="comment">{{ car.comment if car and car.comment else '' }}</textarea>
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{{ 'Зберегти' if editing else 'Створити' }}</button>
+        <a href="/admin/cars/" class="btn btn-ghost">Скасувати</a>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/forms.js"></script>
+{% endblock %}

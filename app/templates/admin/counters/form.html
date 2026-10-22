@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% set editing = mode == 'edit' %}
+{% block title %}{{ 'Змінити рахувальника' if editing else 'Новий рахувальник' }}{% endblock %}
+{% block page_title %}{{ 'Змінити рахувальника' if editing else 'Новий рахувальник' }}{% endblock %}
+
+{% block content %}
+{% set cnt = counter.counter if counter else None %}
+<form class="form-card" method="post"
+    action="{{ ('/admin/counters/' ~ counter.id ~ '/edit') if editing else '/admin/counters/new' }}"
+    enctype="multipart/form-data">
+    <div class="form-grid">
+        <div class="field">
+            <label for="name">Ім'я</label>
+            <input type="text" id="name" name="name" required maxlength="255"
+                value="{{ counter.name if counter else '' }}">
+        </div>
+        <div class="field">
+            <label for="email">Пошта (логін)</label>
+            <input type="email" id="email" name="email" required value="{{ counter.email if counter else '' }}">
+        </div>
+        <div class="field">
+            <label for="password">Пароль {% if editing %}<span class="hint">(залиште порожнім, щоб не
+                    змінювати)</span>{% endif %}</label>
+            <input type="password" id="password" name="password" {% if not editing %}required{% endif %}>
+        </div>
+
+        <div class="field">
+            <label for="age">Вік</label>
+            <input type="number" id="age" name="age" min="0" max="120"
+                value="{{ cnt.age if cnt and cnt.age is not none else '' }}">
+        </div>
+        <div class="field">
+            <label for="gender">Стать</label>
+            <select id="gender" name="gender">
+                <option value="">—</option>
+                {% for g in genders %}
+                <option value="{{ g }}" {% if cnt and cnt.gender==g %}selected{% endif %}>{{ gender_labels[g] }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="field">
+            <label for="employment">Зайнятість</label>
+            <select id="employment" name="employment">
+                {% for e in employments %}
+                <option value="{{ e }}" {% if cnt and cnt.employment==e %}selected{% elif not cnt and e=='none'
+                    %}selected{% endif %}>{{ employment_labels[e] }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="field full">
+            <label>Рейтинг <span class="hint">(видимий лише менеджерам)</span></label>
+            <div class="star-rating" data-input="rating">
+                <input type="hidden" id="rating" name="rating" value="{{ cnt.rating if cnt and cnt.rating else '' }}">
+                <div class="stars" role="radiogroup" aria-label="Рейтинг">
+                    {% for i in range(1, 6) %}
+                    <button type="button" class="star-btn" data-value="{{ i }}" aria-label="{{ i }} зірок">★</button>
+                    {% endfor %}
+                </div>
+                <button type="button" class="star-clear muted">Скинути</button>
+            </div>
+        </div>
+
+        <div class="field full">
+            <label>Типи авто, які рахує</label>
+            <div class="checks">
+                {% for t in car_types %}
+                <label class="check">
+                    <input type="checkbox" name="car_types" value="{{ t }}" {% if cnt and t in cnt.car_types %}checked{%
+                        endif %}>
+                    {{ car_type_labels[t] }}
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="field">
+            <label class="check">
+                <input type="checkbox" name="disability" value="true" {% if cnt and cnt.disability %}checked{% endif %}>
+                Інвалідність
+            </label>
+        </div>
+
+        <div class="field full">
+            <label>Фото</label>
+            <div class="photo-upload" data-preview>
+                <input type="file" id="photo" name="photo" accept="image/*" hidden>
+                <div class="photo-upload-row">
+                    <label for="photo" class="photo-upload-btn">
+                        <span class="photo-upload-icon">📷</span>
+                        <span class="photo-upload-text">Обрати фото</span>
+                    </label>
+                    <span class="photo-filename muted">Файл не обрано</span>
+                </div>
+                <div class="photo-preview-wrap {% if not counter or not counter.photo_url %}hidden{% endif %}">
+                    <img class="photo-preview-img"
+                        src="{{ counter.photo_url if counter and counter.photo_url else '' }}"
+                        alt="Попередній перегляд">
+                </div>
+            </div>
+        </div>
+
+        <div class="field full">
+            <label for="comment">Коментар</label>
+            <textarea id="comment" name="comment">{{ cnt.comment if cnt and cnt.comment else '' }}</textarea>
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{{ 'Зберегти' if editing else 'Створити' }}</button>
+        <a href="/admin/counters/" class="btn btn-ghost">Скасувати</a>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/forms.js"></script>
+{% endblock %}

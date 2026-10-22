@@ -1,0 +1,392 @@
+{% extends "counter_base.html" %}
+{% block title %}Машини на підрахунок{% endblock %}
+
+{% set cparam = (type_qs ~ ('&counter_id=' ~ selected_counter_id if (is_manager_view and selected_counter_id) else '')) %}
+
+{% macro car_row(row, ref_day, selected_counter_id) %}
+<tr data-ready="{{ '1' if row.status in ('ready', 'skipped') else '0' }}"
+    class="{{ 'flexible-row' if row.flexible else '' }}">
+    <td>
+        <div class="car-name">{{ row.car.name or '—' }}</div>
+        <div class="car-imei">{{ row.car.imei }}</div>
+    </td>
+    <td>{{ row.car.company_name or '—' }}</td>
+    <td>
+        {% if row.kind %}
+        {% if row.can_choose_kind %}
+        <button type="button" class="pill pill-{{ row.kind }} route-kind-toggle" data-car-id="{{ row.car.id }}"
+            data-day="{{ ref_day.isoformat() }}" {% if selected_counter_id %}data-counter-id="{{ selected_counter_id }}"
+            {% endif %} data-default-kind="{{ row.default_kind }}" data-kind="{{ row.kind }}"
+            data-default-label="{{ route_kind_labels[row.default_kind] }}"
+            data-alternate-kind="{{ row.alternate_kind }}" data-alternate-label="{{ row.alternate_kind_label }}"
+            data-chosen="{{ '1' if row.kind_chosen else '0' }}" title="Натисніть, щоб змінити тип маршруту">
+            {{ row.kind_label }}{% if row.kind_chosen %} (вибраний){% endif %}
+        </button>
+        <br>
+        <span class="hint">Можна змінити</span>
+        {% else %}
+        <span class="pill pill-{{ row.kind }}">{{ row.kind_label }}{% if row.kind_chosen %} (вибраний){% endif %}</span>
+        {% endif %}
+        {% else %}<span class="muted">—</span>{% endif %}
+    </td>
+    <td>
+        {% if row.flexible %}
+        <span class="muted">—</span>
+        {% else %}{{ row.count_day.strftime('%d.%m.%Y') }}{% endif %}
+    </td>
+    <td class="{% if row.overdue %}text-overdue{% endif %}">
+        {% if row.flexible %}<span class="muted">—</span>{% else %}{{ row.deadline.strftime('%d.%m.%Y') }}{% endif %}
+    </td>
+    <td>
+        <span class="last-seen" data-ts="{{ row.last_seen or '' }}" {% if row.last_seen_hint
+            %}title="{{ row.last_seen_hint }}" {% endif %}>
+            {% if row.last_seen %}
+            {% elif row.last_seen_hint %}
+            <span class="muted last-seen-hint">{{ row.last_seen_hint }}</span>
+            {% else %}
+            <span class="muted">немає даних</span>
+            {% endif %}
+        </span>
+    </td>
+    <td class="nowrap">{{ row.schedule_local[0] }} – {{ row.schedule_local[1] }}</td>
+    <td>
+        {% if row.flexible and row.remaining and row.remaining > 1 %}
+        <span class="pill pill-status pill-status-none" title="Скільки підрахунків лишилось цього тижня">залишилось {{
+            row.remaining }}</span>
+        {% elif row.status == 'skipped' %}
+        <button type="button" class="pill pill-status pill-status-skipped skip-comment-trigger"
+            data-car-id="{{ row.car.id }}"
+            data-day="{{ ref_day.isoformat() }}"
+            data-day-display="{{ ref_day.strftime('%d.%m.%Y') }}"
+            data-car-name="{{ row.car.name or row.car.imei }}"
+            data-skip-comment="{{ row.skip_comment or '' }}"
+            {% if selected_counter_id %}data-counter-id="{{ selected_counter_id }}"{% endif %}
+            title="{% if row.skip_comment %}Причина пропуску{% else %}Додати причину пропуску{% endif %}">
+            {{ row.status_label }}
+        </button>
+        {% else %}
+        <span class="pill pill-status pill-status-{{ row.status or 'none' }}">{{ row.status_label }}</span>
+        {% endif %}
+    </td>
+    <td class="col-action">
+        <div class="action-cell">
+            <div class="action-primary">
+                {% if row.action == 'recount' %}
+                <form action="/panel/count/{{ row.car.id }}/reset" method="post" class="inline reset-form"
+                    target="_blank" rel="noopener" data-car-id="{{ row.car.id }}"
+                    data-car-name="{{ row.car.name or row.car.imei }}" data-current-kind="{{ row.kind }}">
+                    <input type="hidden" name="day" value="{{ ref_day.isoformat() }}">
+                    <input type="hidden" name="type" value="{{ row.schedule_type }}">
+                    {% if selected_counter_id %}<input type="hidden" name="counter_id"
+                        value="{{ selected_counter_id }}">{% endif %}
+                    {% if row.route_kind_chose %}<input type="hidden" name="route_kind" value="{{ row.kind }}"
+                        class="route-kind-input" data-car-id="{{ row.car.id }}">{% endif %}
+                    <button type="submit" class="btn btn-count btn-recount">{{ row.button_label }}</button>
+                </form>
+                {% elif row.use_start_form %}
+                <form action="/panel/count/{{ row.car.id }}/start" method="post" class="inline" target="_blank"
+                    rel="noopener">
+                    <input type="hidden" name="day" value="{{ ref_day.isoformat() }}">
+                    <input type="hidden" name="type" value="{{ row.schedule_type }}">
+                    {% if selected_counter_id %}<input type="hidden" name="counter_id"
+                        value="{{ selected_counter_id }}">{% endif %}
+                    {% if row.route_kind_chose %}<input type="hidden" name="route_kind" value="{{ row.kind }}"
+                        class="route-kind-input" data-car-id="{{ row.car.id }}">{% endif %}
+                    <button type="submit"
+                        class="btn btn-count btn-{{ 'start' if row.action == 'start' else 'continue' }}">{{
+                        row.button_label }}</button>
+                </form>
+                {% elif row.action %}
+                <a class="btn btn-count btn-{{ row.action }}" href="{{ row.count_url }}" target="_blank" rel="noopener">
+                    {{ row.button_label }}
+                </a>
+                {% elif row.counted_by_other %}
+                <span class="btn btn-count btn-external"
+                    title="Підраховано іншим рахувальником{% if row.other_counter_name %}: {{ row.other_counter_name }}{% endif %}">
+                    ✓ {{ row.button_label }}{% if row.other_counter_name %} · {{ row.other_counter_name }}{% endif %}
+                </span>
+                {% else %}
+                <span class="btn btn-locked" title="Доступ відкриється після завершення роботи авто за розкладом">
+                    <img src="../../static/images/lock.svg" alt="" class="icon-lock"> {{ row.button_label }}
+                </span>
+                {% endif %}
+                {% if row.can_skip or row.show_rebuild or row.can_delete %}
+                <div class="action-menu-wrap">
+                    <button type="button" class="btn btn-action-more" aria-haspopup="true" aria-label="Інші дії"
+                        title="Інші дії"><img src="../../static/images/arrow.svg" alt="" class="icon-dots"></button>
+                    <div class="action-menu" role="menu">
+                        {% if row.can_skip %}
+                        <button type="button" class="action-menu-item skip-trigger" role="menuitem"
+                            data-action="/panel/count/{{ row.car.id }}/skip"
+                            data-day="{{ ref_day.isoformat() }}"
+                            data-day-display="{{ ref_day.strftime('%d.%m.%Y') }}"
+                            data-car-name="{{ row.car.name or row.car.imei }}"
+                            data-schedule-type="{{ row.schedule_type }}"
+                            {% if selected_counter_id %}data-counter-id="{{ selected_counter_id }}"{% endif %}
+                            {% if row.route_kind_chose %}data-route-kind="{{ row.kind }}"
+                            data-car-id="{{ row.car.id }}"{% endif %}>Пропустити</button>
+                        {% endif %}
+                        {% if row.can_delete %}
+                        <form action="/panel/count/{{ row.car.id }}/delete" method="post" class="inline"
+                            onsubmit="return confirm('Видалити запис {{ row.car.name or row.car.imei }} за {{ ref_day.strftime('%d.%m.%Y') }}?\n\nПісля цього авто знову зʼявиться як «довільний день» — можна обрати інший день тижня.');">
+                            <input type="hidden" name="day" value="{{ ref_day.isoformat() }}">
+                            <input type="hidden" name="type" value="{{ row.schedule_type }}">
+                            {% if selected_counter_id %}<input type="hidden" name="counter_id"
+                                value="{{ selected_counter_id }}">{% endif %}
+                            <button type="submit" class="action-menu-item action-menu-item-danger"
+                                role="menuitem">Видалити запис</button>
+                        </form>
+                        {% endif %}
+                        {% if row.show_rebuild %}
+                        <form action="/panel/count/{{ row.car.id }}/rebuild" method="post" class="inline rebuild-form"
+                            target="_blank" rel="noopener" data-car-id="{{ row.car.id }}"
+                            data-car-name="{{ row.car.name or row.car.imei }}" data-current-kind="{{ row.kind }}"
+                            onsubmit="return confirm('Перезібрати {{ row.car.name or row.car.imei }}?\n\nСесію буде зібрано заново з обраним типом підрахунку. Введені числа не збережуться.');">
+                            <input type="hidden" name="day" value="{{ ref_day.isoformat() }}">
+                            <input type="hidden" name="type" value="{{ row.schedule_type }}">
+                            {% if selected_counter_id %}<input type="hidden" name="counter_id"
+                                value="{{ selected_counter_id }}">{% endif %}
+                            {% if row.route_kind_chose %}<input type="hidden" name="route_kind" value="{{ row.kind }}"
+                                class="route-kind-input" data-car-id="{{ row.car.id }}">{% endif %}
+                            <button type="submit" class="action-menu-item" role="menuitem">Перезібрати</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            <button type="button"
+                class="comment-btn{% if not row.comment %} comment-btn-empty{% endif %}"
+                data-car-id="{{ row.car.id }}"
+                data-comment="{{ row.comment or '' }}"
+                data-car="{{ row.car.name or row.car.imei }}"
+                title="{% if row.comment %}Коментар про машину{% else %}Додати коментар{% endif %}"><img
+                    src="../../static/images/message.svg" alt="" class="icon-comment"></button>
+        </div>
+    </td>
+</tr>
+{% endmacro %}
+
+{% block content %}
+<div class="panel-toolbar">
+    <div class="panel-daynav">
+        <a class="btn btn-nav" href="/panel/?day={{ prev_day.isoformat() }}{{ cparam }}" title="Попередній день"><img
+                src="../../static/images/arrow.svg" alt="" class="icon-arrow-left"></a>
+        <div class="panel-daynav-center">
+            <input type="text" class="panel-day-input" id="panelDayInput" value="{{ ref_day.strftime('%d.%m.%Y') }}"
+                data-day-iso="{{ ref_day.isoformat() }}" placeholder="ДД.ММ.РРРР" title="Дата у форматі ДД.ММ.РРРР"
+                inputmode="numeric" maxlength="10" autocomplete="off" aria-label="День підрахунку">
+            {% if is_today %}<span class="badge badge-today">Сьогодні</span>
+            {% elif ref_day > today_local %}<span class="badge badge-future">Майбутнє</span>
+            {% else %}<span class="badge badge-past">Минуле</span>{% endif %}
+        </div>
+        <a class="btn btn-nav" href="/panel/?day={{ next_day.isoformat() }}{{ cparam }}" title="Наступний день"><img
+                src="../../static/images/arrow.svg" alt="" class="icon-arrow-right"></a>
+        {% if not is_today %}
+        <a class="btn btn-sm" href="/panel/?day={{ today_local.isoformat() }}{{ cparam }}">Сьогодні</a>
+        {% endif %}
+
+        {% if pending_days %}
+        {% set pending_cars_total = pending_days | sum(attribute='count') %}
+        <div class="pending-days-wrap">
+            <button type="button" class="badge badge-pending-days" aria-haspopup="true" aria-label="Непідраховані дні">
+                {{ pending_days | length }} дн. · {{ pending_cars_total }} авто
+            </button>
+            <div class="pending-days-popover" role="tooltip">
+                <div class="pending-days-popover-title">Непідраховані дні</div>
+                <ul class="pending-days-list">
+                    {% for item in pending_days %}
+                    <li
+                        class="pending-days-item{% if item.day == ref_day %} is-current{% endif %}{% if item.overdue %} is-overdue{% endif %}">
+                        <a href="/panel/?day={{ item.day.isoformat() }}{{ cparam }}">
+                            <span class="pending-day-date">{{ item.day.strftime('%d.%m.%Y') }}</span>
+                            <span class="pending-day-count">{{ item.count }} авто</span>
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if flexible_weeks %}
+        {% set flex_cars_total = flexible_weeks | sum(attribute='count') %}
+        <div class="pending-days-wrap flexible-weeks-wrap">
+            <button type="button" class="badge badge-pending-days badge-flexible-weeks" aria-haspopup="true"
+                aria-label="Довільні дні">
+                Довільні дні · {{ flex_cars_total }} авто
+            </button>
+            <div class="pending-days-popover" role="tooltip">
+                <div class="pending-days-popover-title">Довільні дні</div>
+                <ul class="pending-days-list">
+                    {% for item in flexible_weeks %}
+                    {% set link_day = today_local if item.is_current else item.week_start %}
+                    <li
+                        class="pending-days-item{% if item.is_current %} is-current{% endif %}{% if item.overdue %} is-overdue{% endif %}">
+                        <a href="/panel/?day={{ link_day.isoformat() }}{{ cparam }}">
+                            <span class="pending-day-date">
+                                {% if item.is_current %}Ця неділя
+                                {% elif item.is_last %}Минула неділя
+                                {% else %}{{ item.week_start.strftime('%d.%m.%Y') }} – {{
+                                item.week_end.strftime('%d.%m.%Y') }}{% endif %}
+                            </span>
+                            <span class="pending-day-count">{{ item.count }} авто</span>
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+
+    <div class="panel-toolbar-right">
+        {% if is_manager_view %}
+        <form method="get" action="/panel/" class="counter-picker">
+            <input type="hidden" name="day" value="{{ ref_day.isoformat() }}">
+            <select name="counter_id" onchange="this.form.submit()">
+                <option value="">— оберіть рахувальника —</option>
+                {% for c in counters %}
+                <option value="{{ c.id }}" {% if selected_counter_id==c.id %}selected{% endif %}>
+                    {{ c.name or c.email }}
+                </option>
+                {% endfor %}
+            </select>
+        </form>
+        {% endif %}
+
+        {% if view %}
+        <a class="btn btn-sm panel-type-switch"
+            href="/panel/?day={{ ref_day.isoformat() }}&type={{ other_panel_type }}{% if is_manager_view and selected_counter_id %}&counter_id={{ selected_counter_id }}{% endif %}"
+            title="Перейти до режиму «{{ other_mode_label }}»">
+            {{ other_mode_label }} ({{ other_pending_count }})
+        </a>
+        <label class="check check-inline">
+            <input type="checkbox" id="onlyPending">
+            Лише не підраховані
+        </label>
+        <span class="pending-counter" title="Скільки машин ще треба порахувати">
+            До підрахунку: <b>{{ view.pending_count }}</b> / {{ view.total }}
+        </span>
+        <button type="button" class="btn btn-nav btn-reload" id="panelReload" title="Оновити список">
+            <img src="../../static/images/reload.svg" alt="" class="icon-reload">
+        </button>
+        {% endif %}
+    </div>
+</div>
+
+{% if view is none %}
+<div class="panel-card empty-state">
+    Оберіть рахувальника у списку вгорі, щоб побачити його машини.
+</div>
+{% elif view.rows or view.flexible_rows %}
+<div class="panel-card" id="carsTable">
+    <table class="panel-table">
+        <thead>
+            <tr>
+                <th>Машина</th>
+                <th>Фірма</th>
+                <th>Тип</th>
+                <th>День на підрахунок</th>
+                <th>Очікувана Дата Підрахунку</th>
+                <th>Остання Координата</th>
+                <th>Розклад (UTC+3)</th>
+                <th>Статус</th>
+                <th class="col-action"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in view.rows %}
+            {{ car_row(row, ref_day, selected_counter_id) }}
+            {% endfor %}
+        </tbody>
+        {% if view.flexible_rows %}
+        <tbody class="flexible-group">
+            <tr class="flexible-group-head">
+                <td colspan="9">
+                    Оберіть будь-який день тижня, щоб порахувати
+                </td>
+            </tr>
+            {% for row in view.flexible_rows %}
+            {{ car_row(row, ref_day, selected_counter_id) }}
+            {% endfor %}
+        </tbody>
+        {% endif %}
+    </table>
+    <div class="empty hidden" id="allDoneHint">Усі машини за цей день уже підраховані.</div>
+</div>
+
+{% else %}
+<div class="panel-card empty-state">
+    На {{ ref_day.strftime('%d.%m.%Y') }} немає машин для підрахунку.
+</div>
+{% endif %}
+
+<!-- Модалка коментаря -->
+<div class="modal-overlay hidden" id="commentModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="commentModalTitle">Коментар</h3>
+            <button type="button" class="modal-close" data-close-modal aria-label="Закрити">✕</button>
+        </div>
+        <div class="modal-body">
+            <label for="carCommentInput" class="modal-label">Коментар про машину</label>
+            <textarea id="carCommentInput" class="modal-textarea" rows="4"
+                placeholder="Додайте коментар…"></textarea>
+            <p class="modal-hint modal-save-status hidden" id="carCommentStatus"></p>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-sm" data-close-modal>Скасувати</button>
+            <button type="button" class="btn btn-sm btn-count" id="carCommentSave">Зберегти</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модалка причини пропуску -->
+<div class="modal-overlay hidden" id="skipCommentModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="skipCommentModalTitle">Причина пропуску</h3>
+            <button type="button" class="modal-close" data-close-skip-comment-modal aria-label="Закрити">✕</button>
+        </div>
+        <div class="modal-body">
+            <p class="modal-hint" id="skipCommentModalHint"></p>
+            <label for="skipCommentEdit" class="modal-label">Коментар</label>
+            <textarea id="skipCommentEdit" class="modal-textarea" rows="4"
+                placeholder="Вкажіть причину пропуску…"></textarea>
+            <p class="modal-hint modal-save-status hidden" id="skipCommentEditStatus"></p>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-sm" data-close-skip-comment-modal>Скасувати</button>
+            <button type="button" class="btn btn-sm btn-count" id="skipCommentSave">Зберегти</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модалка пропуску підрахунку -->
+<div class="modal-overlay hidden" id="skipModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="skipModalTitle">Пропустити підрахунок</h3>
+            <button type="button" class="modal-close" data-close-skip-modal aria-label="Закрити">✕</button>
+        </div>
+        <form id="skipModalForm" method="post" class="modal-form">
+            <input type="hidden" name="day" id="skipModalDay" value="">
+            <input type="hidden" name="type" id="skipModalType" value="">
+            <input type="hidden" name="counter_id" id="skipModalCounterId" value="">
+            <input type="hidden" name="route_kind" id="skipModalRouteKind" value="">
+            <div class="modal-body">
+                <p class="modal-hint" id="skipModalHint"></p>
+                <label for="skipComment" class="modal-label">Причина пропуску</label>
+                <textarea id="skipComment" name="comment" class="modal-textarea" rows="4"
+                    placeholder="Коментар (необов'язково)"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm" data-close-skip-modal>Скасувати</button>
+                <button type="submit" class="btn btn-sm btn-count">Пропустити</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

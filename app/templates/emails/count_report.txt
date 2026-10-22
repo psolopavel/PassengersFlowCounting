@@ -1,0 +1,28 @@
+Добрий день!
+
+Надсилаємо звіт про підрахунок пасажирів за {{ h.day|ua_date }} по транспортному засобу {{ h.car_name }}{% if h.company %} ({{ h.company }}){% endif %}.
+{% if h.is_update %}
+{{ h.update_note }}
+{% endif %}
+Тип маршруту: {{ h.kind_label }}
+{% if intercity -%}
+Ходок за день: {{ report.run_count }}
+Час у роботі: {{ report.work_sec|ua_duration }}
+{% endif -%}
+Пробіг: {{ report.distance_km|ua_num }} км
+{% if intercity -%}
+Пасажирів (посадок): {{ report.passengers|ua_num(0) }}
+Розрахована виручка: {{ report.revenue|ua_money }}
+{% else -%}
+Пасажирів за день: {{ report.passengers|ua_num(0) }}
+{% endif %}
+Що підраховано. {{ h.counted_description }}
+{% if intercity %}
+Як розраховано виручку. {{ revenue_description }}
+{% if report.unpriced_pax %}
+Для {{ report.unpriced_pax }} пас. не знайдено ціну проїзду в тарифі — їх не враховано у виручці.
+{% endif %}{% endif %}
+Детальний звіт — у вкладеному файлі {{ filename }}.
+
+--
+Лист сформовано автоматично {{ h.generated_at|ua_datetime }}.{% if not reply_to %} Будь ласка, не відповідайте на нього.{% endif %}

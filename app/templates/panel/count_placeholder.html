@@ -1,0 +1,110 @@
+{% extends "counter_base.html" %}
+{% block title %}Підрахунок{% endblock %}
+
+{% block content %}
+<div class="panel-card count-placeholder">
+    {% if not car %}
+    <h2>Машину не знайдено</h2>
+    {% else %}
+    <h2>{{ car.name or car.imei }}</h2>
+    <p class="muted">IMEI: {{ car.imei }} · День: {{ ref_day.strftime('%d.%m.%Y') }}</p>
+
+    {% set day_iso = ref_day.isoformat() %}
+
+    {% if not session %}
+    {# Сесії ще немає — пропонуємо зібрати дані #}
+    <p>Натисніть, щоб підготувати дані
+        (трек, маршрути, медіа) для цього дня.</p>
+    <form action="/panel/count/{{ car.id }}/start" method="post" class="inline" id="countStartForm"
+        data-car-id="{{ car.id }}" data-day="{{ day_iso }}"
+        {% if counter_id %}data-counter-id="{{ counter_id }}"{% endif %}
+        data-default-kind="{{ default_route_kind }}"
+        data-route-kind-chose="{{ '1' if route_kind_chose else '0' }}">
+        <input type="hidden" name="day" value="{{ day_iso }}">
+        <input type="hidden" name="type" value="{{ panel_type or 'whole_day' }}">
+        {% if counter_id %}<input type="hidden" name="counter_id" value="{{ counter_id }}">{% endif %}
+        <input type="hidden" name="route_kind" value="{{ default_route_kind }}" id="countStartRouteKind">
+        <button type="submit" class="btn btn-primary">Почати підрахунок</button>
+    </form>
+    {% else %}
+    {# Сесія є — показуємо зведення зібраної data (тимчасово, до появи дизайну) #}
+    <div class="count-summary">
+        <p>
+            <strong>Тип:</strong>
+            {% if data and data.kind == 'city' %}Місто
+            {% elif data and data.kind == 'final_stop' %}Кінцеві зупинки
+            {% else %}Міжмісто{% endif %}
+            · <strong>Статус:</strong> {{ session.status }}
+            · <strong>Джерело:</strong> {{ data.source_used if data else '—' }}
+            · <strong>Час:</strong> {{ session.time_spent_sec }} с
+            · <strong>Перезборів:</strong> {{ data.meta.rebuild_count if data and data.meta else 0 }}
+        </p>
+
+        {% if data and data.kind == 'intercity' %}
+        <p>
+            <strong>Трек:</strong> {{ data.track.points }} точок
+            {% if data.track.gap_filled %}(полагоджено){% endif %}
+            {% if data.track.source %}· {{ data.track.source }}{% endif %}
+        </p>
+        <p><strong>Періоди маршрутів:</strong> {{ data.route_periods | length }}
+            · <strong>Відрізки:</strong> {{ data.segments | length }}</p>
+
+        {% if data.segments %}
+        <table class="count-segments">
+            <thead>
+                <tr>
+                    <th>Маршрут</th>
+                    <th>Від</th>
+                    <th>До</th>
+                    <th>Період (UTC)</th>
+                    <th>Людей</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for seg in data.segments %}
+                <tr>
+                    <td>{{ seg.route_name }} #{{ seg.occurrence }}</td>
+                    <td>{{ seg.from_stop.name }}</td>
+                    <td>{{ seg.to_stop.name }}</td>
+                    <td>{{ seg.period_start_utc }}–{{ seg.period_end_utc }}</td>
+                    <td>{{ seg.count if seg.count is not none else '—' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+        {% elif data and data.kind == 'city' %}
+        <p><strong>Камери:</strong>
+            {% for cam in car.cameras %}{{ cam.id if cam is mapping else cam }}{% if not loop.last %}, {% endif %}{% endfor %}
+        </p>
+        <p><strong>Людей у салоні (всього):</strong>
+            {{ data.result.in_salon_total if data.result.in_salon_total is not none else '—' }}</p>
+        {% endif %}
+
+        {% if data and data.warnings %}
+        <div class="count-warnings">
+            <strong>Попередження:</strong>
+            <ul>{% for w in data.warnings %}<li>{{ w }}</li>{% endfor %}</ul>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="count-actions">
+        <form action="/panel/count/{{ car.id }}/reset" method="post" class="inline"
+            onsubmit="return confirm('Перезібрати дані підрахунку? Введені числа збережуться там, де відрізок не змінився.');">
+            <input type="hidden" name="day" value="{{ day_iso }}">
+            {% if counter_id %}<input type="hidden" name="counter_id" value="{{ counter_id }}">{% endif %}
+            <button type="submit" class="btn btn-ghost">Скинути / перезібрати</button>
+        </form>
+        <form action="/panel/count/{{ car.id }}/ready" method="post" class="inline">
+            <input type="hidden" name="day" value="{{ day_iso }}">
+            {% if counter_id %}<input type="hidden" name="counter_id" value="{{ counter_id }}">{% endif %}
+            <button type="submit" class="btn btn-primary">Завершити (готово)</button>
+        </form>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <p><a class="btn btn-sm" href="javascript:window.close()">Закрити вкладку</a></p>
+</div>
+{% endblock %}

@@ -1,0 +1,293 @@
+{% extends "base.html" %}
+{% block title %}Розклад{% endblock %}
+{% block page_title %}Розклад{% endblock %}
+
+{% block content %}
+<div class="toolbar">
+    <h2>Розклад рахувальників</h2>
+    <div class="sched-type-switch" role="tablist" aria-label="Тип підрахунку">
+        <a class="btn btn-sm {{ 'btn-primary' if active_type == 'whole_day' else '' }}"
+            href="?type=whole_day" role="tab" aria-selected="{{ 'true' if active_type == 'whole_day' else 'false' }}">
+            Цілоденний
+        </a>
+        <a class="btn btn-sm {{ 'btn-primary' if active_type == 'final_stops' else '' }}"
+            href="?type=final_stops" role="tab" aria-selected="{{ 'true' if active_type == 'final_stops' else 'false' }}">
+            Кінцеві зупинки
+        </a>
+    </div>
+</div>
+
+{% if counters_data %}
+<div class="sched-counters" id="schedCounters">
+    {% for item in counters_data %}
+    <div class="sched-card" data-counter-id="{{ item.user.id }}">
+        <div class="sched-card-header">
+            <div class="sched-counter-info">
+                {% if item.user.photo_url %}
+                <img src="{{ item.user.photo_url }}" alt="" class="avatar">
+                {% else %}
+                <span class="avatar avatar-empty">{{ (item.user.name or item.user.email)[0] | upper }}</span>
+                {% endif %}
+                <div>
+                    <div class="sched-counter-name">{{ item.user.name or item.user.email }}</div>
+                    <div class="sched-counter-meta">
+                        {% if item.schedules %}{{ item.schedules | length }} авто{% else %}немає прив'язок{% endif %}
+                    </div>
+                </div>
+            </div>
+            {% if current_user.can_edit %}
+            <button class="btn btn-primary btn-sm" onclick="openModal({{ item.user.id }})">+ Додати авто</button>
+            {% endif %}
+        </div>
+
+        <div class="sched-card-body">
+            <div class="sched-cars-panel">
+                <div class="sched-cars-title">Прив'язані авто</div>
+                <div class="sched-cars-list" data-cars-for="{{ item.user.id }}">
+                    {% if item.schedules %}
+                    {% for s in item.schedules %}
+                    <div class="sched-car-item" data-schedule-id="{{ s.id }}" data-car-id="{{ s.car_id }}"
+                        onclick="selectCar(this, {{ item.user.id }}, {{ s.id }})">
+                        <span class="sched-car-color"
+                            style="background:{{ ['#38bdf8','#f472b6','#a78bfa','#34d399','#fbbf24','#fb923c','#f87171','#2dd4bf'][loop.index0 % 8] }}"></span>
+                        <span class="sched-car-name">{% if s.car %}{{ s.car.name }}{% if s.car.company_name %} · {{
+                            s.car.company_name }}{% endif %}{% else %}?{% endif %}</span>
+                        {% if current_user.can_edit %}
+                        <span class="sched-car-actions">
+                            <button class="sched-car-edit" title="Змінити"
+                                onclick="event.stopPropagation(); editSchedule({{ s.id }})">✎</button>
+                            <button class="sched-car-del" title="Видалити"
+                                data-car-name="{{ s.car.name if s.car else '' }}"
+                                onclick="event.stopPropagation(); deleteSchedule({{ s.id }}, this.dataset.carName)">✕</button>
+                        </span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <div class="sched-no-cars">Немає прив'язаних авто</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="sched-calendar-panel">
+                <div class="sched-cal-nav">
+                    <button class="btn btn-sm" onclick="changeMonth({{ item.user.id }}, -1)">◀</button>
+                    <span class="sched-cal-title" data-month-title="{{ item.user.id }}"></span>
+                    <button class="btn btn-sm" onclick="changeMonth({{ item.user.id }}, 1)">▶</button>
+                </div>
+                <div class="sched-cal-grid" data-calendar="{{ item.user.id }}">
+                    <div class="sched-cal-head">Пн</div>
+                    <div class="sched-cal-head">Вт</div>
+                    <div class="sched-cal-head">Ср</div>
+                    <div class="sched-cal-head">Чт</div>
+                    <div class="sched-cal-head">Пт</div>
+                    <div class="sched-cal-head">Сб</div>
+                    <div class="sched-cal-head">Нд</div>
+                </div>
+                <div class="sched-day-detail hidden" data-day-detail="{{ item.user.id }}">
+                    <strong>Авто на <span data-detail-date></span>:</strong>
+                    <ul data-detail-list></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card">
+    <div class="empty">Рахувальників поки немає. Спочатку створіть рахувальника на вкладці «Рахувальники».</div>
+</div>
+{% endif %}
+
+<!-- ── Модальне вікно ── -->
+<div class="modal-overlay hidden" id="schedModal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3 id="modalTitle">Додати авто</h3>
+            <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="modalScheduleId" value="">
+            <input type="hidden" id="modalCounterId" value="">
+
+            <div class="field" id="fieldCar">
+                <label for="modalCarSearch">Машина</label>
+                <div class="searchable-select" data-required="true">
+                    <input type="hidden" id="modalCarId" value="">
+                    <input type="text" id="modalCarSearch" class="searchable-select-search"
+                        placeholder="Почніть вводити назву, IMEI або фірму…" autocomplete="off" spellcheck="false"
+                        aria-autocomplete="list" aria-controls="modalCarOptions" aria-expanded="false">
+                    <ul id="modalCarOptions" class="searchable-select-list hidden" role="listbox">
+                        {% for car in cars %}
+                        <li class="searchable-select-option" role="option" data-value="{{ car.id }}"
+                            data-search="{{ (car.name ~ ' ' ~ car.imei ~ ' ' ~ car.company_name) | lower }}">
+                            {{ car.name }}{% if car.company_name %} · {{ car.company_name }}{% endif %} ({{ car.imei }})
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                <small class="hint">У списку {{ cars | length }} машин — введіть текст для пошуку.</small>
+            </div>
+
+            <div class="field">
+                <label>Тип розкладу</label>
+                <div class="sched-type-tabs">
+                    <label class="check">
+                        <input type="radio" name="recurType" value="weekly" checked onchange="onRecurTypeChange()">
+                        Кілька разів на тиждень
+                    </label>
+                    <label class="check">
+                        <input type="radio" name="recurType" value="every_n_weeks" onchange="onRecurTypeChange()">
+                        Раз на N тижнів
+                    </label>
+                    <label class="check">
+                        <input type="radio" name="recurType" value="none" onchange="onRecurTypeChange()">
+                        Без повторень
+                    </label>
+                </div>
+            </div>
+
+            <div id="weeklyBlock" class="field">
+                <label>Дні тижня</label>
+                <div class="sched-week-mode">
+                    <label class="check">
+                        <input type="radio" name="weeklyMode" value="fixed" checked onchange="onWeeklyModeChange()">
+                        Конкретні дні
+                    </label>
+                    <label class="check">
+                        <input type="radio" name="weeklyMode" value="counter_choice" onchange="onWeeklyModeChange()">
+                        На розсуд рахувальника
+                    </label>
+                </div>
+                <div id="weeklyFixedBlock" class="checks">
+                    <label class="check"><input type="checkbox" name="weekday" value="1" onchange="previewDates()">
+                        Пн</label>
+                    <label class="check"><input type="checkbox" name="weekday" value="2" onchange="previewDates()">
+                        Вт</label>
+                    <label class="check"><input type="checkbox" name="weekday" value="3" onchange="previewDates()">
+                        Ср</label>
+                    <label class="check"><input type="checkbox" name="weekday" value="4" onchange="previewDates()">
+                        Чт</label>
+                    <label class="check"><input type="checkbox" name="weekday" value="5" onchange="previewDates()">
+                        Пт</label>
+                    <label class="check"><input type="checkbox" name="weekday" value="6" onchange="previewDates()">
+                        Сб</label>
+                    <label class="check"><input type="checkbox" name="weekday" value="7" onchange="previewDates()">
+                        Нд</label>
+                </div>
+                <div id="weeklyChoiceBlock" class="field hidden" style="margin-top:0.5rem">
+                    <label for="weeklyDaysCount">Кількість днів на тиждень</label>
+                    <input type="number" id="weeklyDaysCount" min="1" max="7" value="1" onchange="previewDates()">
+                </div>
+                <div class="field" style="margin-top:0.5rem">
+                    <label>Початок відліку</label>
+                    <input type="date" id="weeklyStart" onchange="previewDates()">
+                </div>
+            </div>
+
+            <div id="everyNBlock" class="field hidden">
+                <label>Періодичність</label>
+                <div class="sched-week-mode">
+                    <label class="check">
+                        <input type="radio" name="everyMode" value="fixed" checked onchange="onEveryModeChange()">
+                        Конкретний день
+                    </label>
+                    <label class="check">
+                        <input type="radio" name="everyMode" value="counter_choice" onchange="onEveryModeChange()">
+                        На розсуд рахувальника
+                    </label>
+                </div>
+                <div id="everyFixedBlock" class="sched-every-n-row">
+                    <span>Кожні</span>
+                    <select id="everyN" onchange="previewDates()">
+                        <option value="1">1</option>
+                        <option value="2" selected>2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                    </select>
+                    <span>тижн., день:</span>
+                    <select id="everyDay" onchange="previewDates()">
+                        <option value="1">Понеділок</option>
+                        <option value="2">Вівторок</option>
+                        <option value="3">Середа</option>
+                        <option value="4">Четвер</option>
+                        <option value="5">П'ятниця</option>
+                        <option value="6">Субота</option>
+                        <option value="7">Неділя</option>
+                    </select>
+                </div>
+                <div id="everyChoiceBlock" class="sched-every-n-row hidden">
+                    <span>Кожні</span>
+                    <select id="everyNChoice" onchange="previewDates()">
+                        <option value="1">1</option>
+                        <option value="2" selected>2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                    </select>
+                    <span>тижн.</span>
+                </div>
+                <div class="field" style="margin-top:0.5rem">
+                    <label>Початок відліку</label>
+                    <input type="date" id="everyStart" onchange="previewDates()">
+                </div>
+            </div>
+
+            <div class="field">
+                <label>Додаткові дні (поза розкладом)</label>
+                <div class="sched-days-row">
+                    <input type="date" id="singleDayInput">
+                    <button type="button" class="btn btn-sm" onclick="addSingleDay()">Додати</button>
+                </div>
+                <div class="sched-tags" id="singleDaysList"></div>
+            </div>
+
+            <div class="field">
+                <label>Виключення з розкладу</label>
+                <div class="sched-days-row">
+                    <input type="date" id="exceptionDayInput">
+                    <button type="button" class="btn btn-sm" onclick="addExceptionDay()">Додати</button>
+                </div>
+                <div class="sched-tags" id="exceptionDaysList"></div>
+            </div>
+
+            <div class="field">
+                <label>Коментар</label>
+                <textarea id="modalComment" rows="2"></textarea>
+            </div>
+
+            <div class="sched-preview">
+                <div class="sched-preview-title">Попередній перегляд розкладу</div>
+                <div class="sched-preview-hint hidden" id="previewChoiceHint"></div>
+                <div class="sched-cal-nav">
+                    <button class="btn btn-sm" onclick="changePreviewMonth(-1)">◀</button>
+                    <span class="sched-cal-title" id="previewMonthTitle"></span>
+                    <button class="btn btn-sm" onclick="changePreviewMonth(1)">▶</button>
+                </div>
+                <div class="sched-cal-grid" id="previewCalendar">
+                    <div class="sched-cal-head">Пн</div>
+                    <div class="sched-cal-head">Вт</div>
+                    <div class="sched-cal-head">Ср</div>
+                    <div class="sched-cal-head">Чт</div>
+                    <div class="sched-cal-head">Пт</div>
+                    <div class="sched-cal-head">Сб</div>
+                    <div class="sched-cal-head">Нд</div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" id="modalSaveBtn" onclick="saveSchedule()">Зберегти</button>
+            <button class="btn" onclick="closeModal()">Скасувати</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const CAN_EDIT = {{ current_user.can_edit | tojson }};
+    const SCHEDULE_DATA = {{ schedule_data | tojson }};
+    const ACTIVE_TYPE = {{ active_type | tojson }};
+</script>
+<script src="/static/js/forms.js"></script>
+<script src="/static/js/schedules.js"></script>
+{% endblock %}

@@ -1,0 +1,21 @@
+[Unit]
+Description=Passengers Flow Counting — відправка xlsx-звітів клієнтам (SendLayer)
+After=network-online.target mysql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/var/www/PassengersFlowCounting
+Environment="PATH=/var/www/PassengersFlowCounting/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+EnvironmentFile=-/var/www/PassengersFlowCounting/.env
+ExecStart=/var/www/PassengersFlowCounting/.venv/bin/python -m app.workers.report_mailer
+Restart=always
+RestartSec=10
+KillSignal=SIGTERM
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target

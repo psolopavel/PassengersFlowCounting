@@ -1,0 +1,88 @@
+// Запрос:
+
+const BASE = "http://138.201.226.159:8083";
+const API_KEY = "qX4vE9lkR3yaL7gyAfuF0ixQ6miGecM1sv8nzZ5oeIcnShpNasJjoHwrV2xdC2wB4khW6l";
+
+fetch(`${BASE}/api/v1/revenue`, {
+   method: "POST",
+   headers: { "X-API-Key": API_KEY, "Content-Type": "application/json" },
+   body: JSON.stringify({
+      imeis: ["352625694509058", "862129084872286", "864022087580493", "864022087580493", "864022086660577"],
+      from: "01-09-2026 00:00",
+      to: "14-09-2026 23:59",
+   }),
+})
+   .then(r => r.json())
+   .then(console.log)
+   .catch(console.error);
+
+// Ответ:
+
+[
+   {
+      "imei": "352625694509058",
+      "day": "2026-09-04",
+      "kind": "intercity",
+      "distance_km": 126.62,
+      "passengers": 291,
+      "revenue_uah": 1610,
+      "warnings": [
+         "no_tariff:280",
+         "no_tariff:280",
+         "no_tariff:280",
+         "no_tariff:280",
+         "no_tariff:280",
+         "no_tariff:280",
+         "no_tariff:280",
+         "no_tariff:280",
+         "no_tariff:280",
+         "no_tariff:280",
+         "no_tariff:280",
+         "no_tariff:280",
+         "no_tariff:280",
+         "no_tariff:366",
+         "no_tariff:366",
+         "no_tariff:366",
+         "no_tariff:366",
+         "no_tariff:366",
+         "no_tariff:366",
+         "no_tariff:366",
+         "no_tariff:366",
+         "no_tariff:366",
+         "no_tariff:366",
+         "no_tariff:366",
+         "no_tariff:366",
+         "no_tariff:366",
+         "no_tariff:280",
+         "no_tariff:280",
+         "no_tariff:366"
+      ]
+   },
+   {
+      "imei": "862129084872286",
+      "day": "2026-09-04",
+      "kind": "city",
+      "distance_km": 137.33,
+      "passengers": 300,
+      "revenue_uah": null,
+      "warnings": []
+   },
+   {
+      "imei": "864022087580493",
+      "day": "2026-09-03",
+      "kind": "city",
+      "distance_km": 137.87,
+      "passengers": 350,
+      "revenue_uah": null,
+      "warnings": []
+   },
+   {
+      "imei": "864022087580493",
+      "day": "2026-09-04",
+      "kind": "city",
+      "distance_km": 118.25,
+      "passengers": 300,
+      "revenue_uah": null,
+      "warnings": []
+   }
+]

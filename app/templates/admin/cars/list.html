@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Машини{% endblock %}
+{% block page_title %}Машини{% endblock %}
+
+{% block content %}
+<div class="toolbar">
+    <h2>Список машин</h2>
+    {% if current_user.can_edit %}
+    <a href="/admin/cars/new" class="btn btn-primary">+ Нова машина</a>
+    {% endif %}
+</div>
+
+{% if cars %}
+<div data-filterable>
+<div class="filters">
+    <input type="search" class="filter-search" placeholder="Пошук: назва, IMEI, фірма, власник, камера…"
+           data-filter="search" data-match="includes">
+    <select data-filter="owner">
+        <option value="">Власник: усі</option>
+        {% for acc in owner_accounts %}
+        <option value="{{ acc.id }}">{{ acc.name }}</option>
+        {% endfor %}
+    </select>
+    <select data-filter="source">
+        <option value="">Джерело: усі</option>
+        {% for s in count_sources %}
+        <option value="{{ s }}">{{ count_source_labels[s] }}</option>
+        {% endfor %}
+    </select>
+    <select data-filter="company">
+        <option value="">Фірма: усі</option>
+        {% for company in cars | map(attribute='company_name') | unique | sort %}
+        <option value="{{ company }}">{{ company }}</option>
+        {% endfor %}
+    </select>
+    <select data-filter="type" data-match="list">
+        <option value="">Тип: усі</option>
+        {% for t in route_kinds %}
+        <option value="{{ t }}">{{ route_kind_labels[t] }}</option>
+        {% endfor %}
+    </select>
+    <select data-filter="difficulty">
+        <option value="">Складність: усі</option>
+        {% for i in range(1, 6) %}
+        <option value="{{ i }}">{{ i }} ★</option>
+        {% endfor %}
+    </select>
+    <select data-filter="active">
+        <option value="">Активна: усі</option>
+        <option value="1">Так</option>
+        <option value="0">Ні</option>
+    </select>
+    <button type="button" class="btn btn-sm" data-filter-reset>Скинути</button>
+</div>
+
+<div class="card">
+    <table>
+        <thead>
+            <tr>
+                <th>Назва</th>
+                <th>IMEI</th>
+                <th>Власник</th>
+                <th>Камери</th>
+                <th>Джерело</th>
+                <th>Тип</th>
+                <th>Складність</th>
+                <th>Активна</th>
+                {% if current_user.can_edit %}<th></th>{% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for car in cars %}
+            {% set owner_name = (owners.get(car.owner_user_id).display_name if car.owner_user_id and owners.get(car.owner_user_id) else (car.company_name or '')) %}
+            <tr data-search="{{ (car.name ~ ' ' ~ car.imei ~ ' ' ~ car.company_name ~ ' ' ~ owner_name ~ ' ' ~ (car.cameras | map(attribute='id') | join(' ') if car.cameras and car.cameras[0] is mapping else (car.cameras | join(' ') if car.cameras else ''))) | lower }}"
+                data-owner="{{ car.owner_user_id or '' }}"
+                data-source="{{ car.count_source }}"
+                data-company="{{ car.company_name }}"
+                data-type="{{ car.route_kind | join(',') if car.route_kind else '' }}"
+                data-difficulty="{{ car.difficulty_rating or '' }}"
+                data-active="{{ '1' if car.is_active else '0' }}">
+                <td>{{ car.name or '—' }}</td>
+                <td>{{ car.imei }}</td>
+                <td>
+                    {% if car.owner_user_id and owners.get(car.owner_user_id) %}
+                    {{ owners.get(car.owner_user_id).display_name }}
+                    {% elif car.company_name %}{{ car.company_name }}
+                    {% else %}<span class="muted">—</span>{% endif %}
+                </td>
+                <td>
+                    {% if car.cameras %}
+                    {% for cam in car.cameras %}
+                    <span class="pill" title="{{ camera_orientation_labels.get(cam.orientation, '') if cam is mapping else '' }}">
+                        {{ cam.id if cam is mapping else cam }}{% if cam is mapping and cam.orientation == 'portrait' %} ↕{% endif %}
+                    </span>
+                    {% endfor %}
+                    {% else %}<span class="muted">—</span>{% endif %}
+                </td>
+                <td>
+                    {{ count_source_labels.get(car.count_source, car.count_source) }}
+                    {% if car.alarms_only %}<span class="pill">лише тривоги</span>{% endif %}
+                </td>
+                <td>
+                    {% if car.route_kind %}
+                    {% for t in car.route_kind %}<span class="pill">{{ route_kind_labels.get(t, t) }}</span> {% endfor
+                    %}
+                    {% else %}<span class="muted">—</span>{% endif %}
+                </td>
+                <td>
+                    {% if car.difficulty_rating %}
+                    <span class="stars-display">
+                        {% for i in range(1, 6) %}
+                        <span class="rating-star {% if car.difficulty_rating >= i %}filled{% endif %}">★</span>
+                        {% endfor %}
+                    </span>
+                    {% else %}<span class="muted">—</span>{% endif %}
+                </td>
+                <td>
+                    {% if car.is_active %}<span class="pill pill-on">так</span>
+                    {% else %}<span class="pill pill-off">ні</span>{% endif %}
+                </td>
+                {% if current_user.can_edit %}
+                <td>
+                    <div class="actions">
+                        <a href="/admin/cars/{{ car.id }}/edit" class="btn btn-sm">Змінити</a>
+                        <form action="/admin/cars/{{ car.id }}/delete" method="post" class="inline"
+                            onsubmit="return confirm('Видалити машину {{ car.name or car.imei }}?\n\nУВАГА: разом із нею буде безповоротно видалено розклади, сесії підрахунку, агрегати за дні та історію тарифів. Відновити це буде неможливо.');">
+                            <button type="submit" class="btn btn-sm btn-danger">Видалити</button>
+                        </form>
+                    </div>
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <div class="empty hidden" data-filter-empty>Нічого не знайдено за заданими фільтрами.</div>
+</div>
+</div>
+{% else %}
+<div class="card">
+    <div class="empty">Машин поки немає.</div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/filters.js"></script>
+{% endblock %}

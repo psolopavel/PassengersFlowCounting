@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="uk">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Панель менеджера{% endblock %} · Менеджер підрахунку пасажирів</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+
+<body class="app">
+    <aside class="sidebar">
+        <div class="brand">Менеджер підрахунку пасажирів</div>
+        <nav class="nav">
+            {% set tabs = [
+            ('dashboard', '/admin', 'Дашборд'),
+            ('counters', '/admin/counters', 'Рахувальники'),
+            ('cars', '/admin/cars', 'Машини'),
+            ('schedules', '/admin/schedules', 'Розклад'),
+            ('tariffs', '/admin/tariffs', 'Тарифи'),
+            ('statistics', '/admin/statistics', 'Статистика'),
+            ] %}
+            {% for key, href, label in tabs %}
+            <a href="{{ href }}" class="nav-item {% if active_tab == key %}active{% endif %}">{{ label }}</a>
+            {% endfor %}
+        </nav>
+    </aside>
+
+    <div class="main">
+        <header class="topbar">
+            <div class="page-title">{% block page_title %}{% endblock %}</div>
+            <div class="user-box">
+                {% if current_user %}
+                <span class="user-email">{{ current_user.name or current_user.email }}</span>
+                <span class="badge">{{ 'Повний доступ' if current_user.manager_access == 'full' else 'Лише перегляд'
+                    }}</span>
+                <form action="/logout" method="post" class="inline">
+                    <button type="submit" class="btn btn-ghost">Вийти</button>
+                </form>
+                {% endif %}
+            </div>
+        </header>
+
+        {% if flashes %}
+        <div class="flashes">
+            {% for f in flashes %}
+            <div class="flash flash-{{ f.category }}">{{ f.message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <main class="content">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+    {% block scripts %}{% endblock %}
+    <script src="/static/js/flashes.js"></script>
+    {% if current_user %}<script src="/static/js/presence.js"></script>{% endif %}
+</body>
+
+</html>

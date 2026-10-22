@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Тарифи{% endblock %}
+{% block page_title %}Тарифи{% endblock %}
+
+{% block content %}
+<div class="toolbar">
+    <h2>Тарифи за машинами</h2>
+</div>
+
+{% if cars %}
+<div data-filterable>
+<div class="filters">
+    <input type="search" class="filter-search" placeholder="Пошук: назва, IMEI, фірма…"
+           data-filter="search" data-match="includes">
+    <select data-filter="type" data-match="list">
+        <option value="">Тип: усі</option>
+        {% for t in route_kinds %}
+        <option value="{{ t }}">{{ route_kind_labels[t] }}</option>
+        {% endfor %}
+    </select>
+    <select data-filter="active">
+        <option value="">Активна: усі</option>
+        <option value="1">Так</option>
+        <option value="0">Ні</option>
+    </select>
+    <button type="button" class="btn btn-sm" data-filter-reset>Скинути</button>
+</div>
+
+<div class="card">
+    <table>
+        <thead>
+            <tr>
+                <th>Назва</th>
+                <th>IMEI</th>
+                <th>Фірма</th>
+                <th>Тип</th>
+                <th>Активна</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for car in cars %}
+            <tr data-search="{{ (car.name ~ ' ' ~ car.imei ~ ' ' ~ car.company_name) | lower }}"
+                data-type="{{ car.route_kind | join(',') if car.route_kind else '' }}"
+                data-active="{{ '1' if car.is_active else '0' }}">
+                <td>{{ car.name or '—' }}</td>
+                <td>{{ car.imei }}</td>
+                <td>{{ car.company_name }}</td>
+                <td>
+                    {% if car.route_kind %}
+                    {% for t in car.route_kind %}<span class="pill">{{ route_kind_labels.get(t, t) }}</span> {% endfor %}
+                    {% else %}<span class="muted">—</span>{% endif %}
+                </td>
+                <td>
+                    {% if car.is_active %}<span class="pill pill-on">так</span>
+                    {% else %}<span class="pill pill-off">ні</span>{% endif %}
+                </td>
+                <td>
+                    <a href="/admin/tariffs/{{ car.id }}" class="btn btn-sm">Відкрити тарифи</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <div class="empty hidden" data-filter-empty>Нічого не знайдено за заданими фільтрами.</div>
+</div>
+</div>
+{% else %}
+<div class="card">
+    <div class="empty">Машин поки немає.</div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/filters.js"></script>
+{% endblock %}

@@ -448,9 +448,6 @@ export class MultiCamPlayer {
     }
 
     showPhotoAt(c, utc) {
-        if (!c.els.video.paused) c.els.video.pause();
-        c.activeUrl = null;
-        c.stallSince = 0;
         const idx = photoIndex(c.photos, utc);
         const photo = idx >= 0 && utc - c.photos[idx].utc <= PHOTO_MAX_GAP ? c.photos[idx] : null;
         const buf = this.prefetchPhotos(c, photo ? idx : idx + 1, utc);
@@ -461,6 +458,12 @@ export class MultiCamPlayer {
             c.stall = false;
             return false;
         }
+
+        // Відео скидаємо лише коли справді показуємо фото: інакше при пріоритеті
+        // фото й відсутності кадру showVideoAt щокадру заново присвоював би src.
+        if (!c.els.video.paused) c.els.video.pause();
+        c.activeUrl = null;
+        c.stallSince = 0;
 
         const entry = c.photoCache.get(photo.url);
         this.holdForPhoto(c, entry, buf);

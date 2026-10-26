@@ -14,30 +14,29 @@ from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
-from app.services.car_service import camera_ids
+from app.services.car_service import camera_ids, parse_schedule_to_local
 from app.services import final_stop_service, media_service, route_match_service, track_service
 from app.services import gap_fill_service
-from app.services.panel_service import parse_car_schedule_utc
 from app.utils.debug_log import debug_log
+from app.utils.local_tz import combine_local, parse_hhmm, unix_to_local
 
-_LOCAL_OFFSET = timedelta(hours=3)
 _SPEED_MAX_POINTS = 800
 
 
 def _window_unix(car, day: date) -> tuple[int, int]:
-    """Окно рабочего дня машины в unix (UTC) по schedule (start_utc/end_utc)."""
-    start_t, end_t = parse_car_schedule_utc(car.schedule)
-    start_dt = datetime.combine(day, start_t, tzinfo=timezone.utc)
-    end_dt = datetime.combine(day, end_t, tzinfo=timezone.utc)
-    if end_t <= start_t:
+    """Окно рабочего дня в unix (UTC): местные часы графика на календарный day (DST)."""
+    start_s, end_s = parse_schedule_to_local(car.schedule)
+    start_dt = combine_local(day, parse_hhmm(start_s))
+    end_dt = combine_local(day, parse_hhmm(end_s))
+    if end_dt <= start_dt:
         end_dt += timedelta(days=1)
     return int(start_dt.timestamp()), int(end_dt.timestamp())
 
 
 def _local_days(start_unix: int, end_unix: int) -> list[date]:
-    """Локальные (UTC+3) даты, которые перекрывает окно — для запроса медиа."""
-    s = datetime.fromtimestamp(start_unix, tz=timezone.utc) + _LOCAL_OFFSET
-    e = datetime.fromtimestamp(end_unix, tz=timezone.utc) + _LOCAL_OFFSET
+    """Локальные даты, которые перекрывает окно — для запроса медиа."""
+    s = unix_to_local(start_unix)
+    e = unix_to_local(end_unix)
     days = []
     d = s.date()
     while d <= e.date():

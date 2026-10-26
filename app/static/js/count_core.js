@@ -9,7 +9,36 @@
 
 const $ = (id) => document.getElementById(id);
 
-export const LOCAL_OFFSET = 3 * 3600; // UTC+3
+const LOCAL_TZ = "Europe/Kyiv";
+
+/** @deprecated Используйте clock(); оставлено для старых импортов. */
+export function localOffsetSec(utc) {
+    const d = new Date(utc * 1000);
+    const utcMin = d.getUTCHours() * 60 + d.getUTCMinutes();
+    const parts = new Intl.DateTimeFormat("en-GB", {
+        timeZone: LOCAL_TZ,
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+    }).formatToParts(d);
+    const h = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
+    const m = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
+    const locMin = h * 60 + m;
+    return (locMin - utcMin) * 60 - d.getUTCSeconds();
+}
+
+function _localTimeParts(utc, withSeconds) {
+    const opts = {
+        timeZone: LOCAL_TZ,
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+    };
+    if (withSeconds) opts.second = "2-digit";
+    const parts = new Intl.DateTimeFormat("uk-UA", opts).formatToParts(new Date(utc * 1000));
+    const get = (type) => parts.find((p) => p.type === type)?.value ?? "00";
+    return { h: get("hour"), m: get("minute"), s: get("second") };
+}
 const RATES = [0.25, 0.5, 1, 2, 4, 8, 16, 24, 32, 64];
 // Стеля швидкості, коли на екрані є відео: браузер не тягне playbackRate > 16×.
 // Для «тільки фото» стеля знімається (аж до кінця RATES).
@@ -39,17 +68,12 @@ const ASPECT = { portrait: 9 / 16, landscape: 16 / 9 };
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 
 export function clock(utc) {
-    const d = new Date((utc + LOCAL_OFFSET) * 1000);
-    const h = String(d.getUTCHours()).padStart(2, "0");
-    const m = String(d.getUTCMinutes()).padStart(2, "0");
-    const s = String(d.getUTCSeconds()).padStart(2, "0");
+    const { h, m, s } = _localTimeParts(utc, true);
     return `${h}:${m}:${s}`;
 }
 
 export function clockHm(utc) {
-    const d = new Date((utc + LOCAL_OFFSET) * 1000);
-    const h = String(d.getUTCHours()).padStart(2, "0");
-    const m = String(d.getUTCMinutes()).padStart(2, "0");
+    const { h, m } = _localTimeParts(utc, false);
     return `${h}:${m}`;
 }
 
@@ -677,9 +701,7 @@ export class MultiCamPlayer {
         for (let t = firstTick; t <= this.viewEnd; t += stepH) {
             const x = this.xOf(t);
             c.beginPath(); c.moveTo(x, 0); c.lineTo(x, this.cssH); c.stroke();
-            const d = new Date((t + LOCAL_OFFSET) * 1000);
-            const hh = String(d.getUTCHours()).padStart(2, "0");
-            const mm = String(d.getUTCMinutes()).padStart(2, "0");
+            const { h: hh, m: mm } = _localTimeParts(t, false);
             c.fillText(`${hh}:${mm}`, x + 2, 10);
         }
 

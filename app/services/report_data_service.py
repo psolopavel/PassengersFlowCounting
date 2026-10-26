@@ -13,17 +13,11 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime
 from typing import Callable
 
 from app.services import revenue_service as rev
-
-try:
-    from zoneinfo import ZoneInfo
-
-    LOCAL_TZ = ZoneInfo("Europe/Kiev")
-except Exception:  # noqa: BLE001 — нет базы часовых поясов
-    LOCAL_TZ = timezone(timedelta(hours=3))
+from app.utils.local_tz import LOCAL_TZ, unix_to_local_naive
 
 KIND_LABELS = {
     "city": "Міський маршрут",
@@ -187,7 +181,7 @@ def local_dt(ts) -> datetime | None:
         return None
     if ts <= 0:
         return None
-    return datetime.fromtimestamp(ts, LOCAL_TZ).replace(tzinfo=None)
+    return unix_to_local_naive(ts)
 
 
 def now_local() -> datetime:

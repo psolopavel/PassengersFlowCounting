@@ -5,7 +5,7 @@
 """
 
 import json
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -23,10 +23,9 @@ from app.services import summary_service
 from app.services.counting_session_service import count_type_for_panel
 from app.services.schedule_service import normalize_type
 from app.templating import flash, render
+from app.utils.local_tz import local_today
 
 router = APIRouter(prefix="/panel")
-
-_LOCAL_OFFSET = timedelta(hours=3)
 
 
 def _parse_day(value: str) -> date | None:
@@ -39,7 +38,7 @@ def _parse_day(value: str) -> date | None:
 
 
 def _today_local() -> date:
-    return (datetime.now(timezone.utc) + _LOCAL_OFFSET).date()
+    return local_today()
 
 
 def _target_counter_id(user: User, counter_id: int | None) -> int:

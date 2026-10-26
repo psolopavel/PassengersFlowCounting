@@ -18,11 +18,13 @@ from sqlalchemy import cast, select, String
 from sqlalchemy.orm import Session, joinedload
 
 from app.models import Car, CountingSession, Schedule, Tracker, User
+from app.services.car_service import parse_schedule_to_local
 from app.services.counting_session_service import count_type_for_panel
 from app.services.schedule_service import is_scheduled_on, normalize_type
+from app.utils.local_tz import combine_local, local_today, parse_hhmm
 
-# Локальное время интерфейса — UTC+3 (как в остальном проекте).
-_LOCAL_OFFSET = timedelta(hours=3)
+# Legacy: в JSON графика время хранится как «UTC» = местное − 3ч (фикс.).
+_SCHEDULE_LEGACY_OFFSET = timedelta(hours=3)
 _DEFAULT_SCHEDULE_UTC = (time(3, 0, 0), time(19, 0, 0))
 
 ROUTE_KIND_LABELS = {"city": "Місто", "intercity": "Міжмісто"}
@@ -76,7 +78,7 @@ def parse_car_schedule_utc(raw) -> tuple[time, time]:
 
 
 def _utc_time_to_local_str(t: time) -> str:
-    dt = datetime(2000, 1, 1, t.hour, t.minute, t.second) + _LOCAL_OFFSET
+    dt = datetime(2000, 1, 1, t.hour, t.minute, t.second) + _SCHEDULE_LEGACY_OFFSET
     return dt.strftime("%H:%M")
 
 
@@ -269,14 +271,16 @@ def _external_done_in_range(
 
 
 def _is_day_countable(ref_day: date, car: Car, now_utc: datetime) -> bool:
-    today_local = (now_utc + _LOCAL_OFFSET).date()
-    if getattr(car, "non_shedule_count", False) and ref_day == today_local:
+    if getattr(car, "non_shedule_count", False) and ref_day == local_today(now_utc):
         return True
+    _start_s, end_s = parse_schedule_to_local(car.schedule)
+    unlock_dt = combine_local(ref_day, parse_hhmm(end_s))
     start_utc, end_utc = parse_car_schedule_utc(car.schedule)
-    unlock_dt = datetime.combine(ref_day, end_utc, tzinfo=timezone.utc)
     if end_utc <= start_utc:
         unlock_dt += timedelta(days=1)
-    return now_utc >= unlock_dt
+    if now_utc.tzinfo is None:
+        now_utc = now_utc.replace(tzinfo=timezone.utc)
+    return now_utc >= unlock_dt.astimezone(timezone.utc)
 
 
 def _date_or_none(value) -> date | None:
@@ -391,7 +395,7 @@ def get_pending_days_summary(
     Возвращает список {day, count, overdue}, от новых к старым.
     """
     now_utc = datetime.now(timezone.utc)
-    today_local = (now_utc + _LOCAL_OFFSET).date()
+    today_local = local_today(now_utc)
     start_day = today_local - timedelta(days=lookback_days)
 
     schedule_type = normalize_type(schedule_type)
@@ -491,7 +495,7 @@ def get_flexible_weeks_summary(
     від нових тижнів до старих. count — скільки авто ще треба порахувати того тижня.
     """
     now_utc = datetime.now(timezone.utc)
-    today_local = (now_utc + _LOCAL_OFFSET).date()
+    today_local = local_today(now_utc)
     cur_week_start = _iso_week_start(today_local)
     last_week_start = cur_week_start - timedelta(days=7)
     start_week = cur_week_start - timedelta(days=7 * lookback_weeks)
@@ -898,7 +902,7 @@ def get_panel_view(
     schedule_type: str = "whole_day",
 ) -> dict:
     now_utc = datetime.now(timezone.utc)
-    today_local = (now_utc + _LOCAL_OFFSET).date()
+    today_local = local_today(now_utc)
     schedule_type = normalize_type(schedule_type)
 
     rows, flexible_rows = _build_rows(

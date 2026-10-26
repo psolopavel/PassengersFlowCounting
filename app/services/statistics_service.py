@@ -22,9 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Car, CountingSession, User
-
-# Локальний час інтерфейсу — UTC+3 (як і в решті проєкту).
-_LOCAL_OFFSET = timedelta(hours=3)
+from app.utils.local_tz import LOCAL_TZ, local_today
 
 DIMENSIONS = ("counter", "car")
 DIMENSION_LABELS = {"counter": "За рахувальником", "car": "За машиною"}
@@ -65,12 +63,12 @@ def list_cars(db: Session) -> list[Car]:
 # ── допоміжні ─────────────────────────────────────────────────────────
 
 def _to_local(dt: datetime | None) -> datetime | None:
-    """Привести UTC-datetime із БД до локального часу (UTC+3)."""
+    """Привести UTC-datetime із БД до локального часу (Europe/Kyiv)."""
     if dt is None:
         return None
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
-    return (dt.astimezone(timezone.utc) + _LOCAL_OFFSET).replace(tzinfo=None)
+    return dt.astimezone(LOCAL_TZ).replace(tzinfo=None)
 
 
 def _deadline(count_day: date) -> date:
@@ -243,7 +241,7 @@ def _is_overdue(status: str, done_at: datetime | None, deadline: date) -> bool:
     if status in _DONE_STATUSES:  # skipped
         return False
     # in_progress / інше
-    today_local = (datetime.now(timezone.utc) + _LOCAL_OFFSET).date()
+    today_local = local_today()
     return today_local > deadline
 
 

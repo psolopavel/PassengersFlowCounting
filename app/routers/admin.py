@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func, select
@@ -9,9 +9,7 @@ from app.models import Car, User
 from app.security import require_manager
 from app.services import statistics_service
 from app.templating import render
-
-# Локальний час інтерфейсу — UTC+3 (як і в решті проєкту).
-_LOCAL_OFFSET = timedelta(hours=3)
+from app.utils.local_tz import local_today
 
 router = APIRouter(prefix="/admin")
 
@@ -87,7 +85,7 @@ def statistics(
         entities = statistics_service.list_counters(db)
 
     # Діапазон дат: за замовчуванням понеділок поточного тижня — сьогодні (локальний час).
-    today_local = (datetime.now(timezone.utc) + _LOCAL_OFFSET).date()
+    today_local = local_today()
     default_from, default_to = statistics_service.default_date_range(today_local)
 
     preset_range = statistics_service.preset_date_range(preset, today_local) if preset else None

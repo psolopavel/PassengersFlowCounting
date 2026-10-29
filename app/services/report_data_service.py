@@ -1,4 +1,4 @@
-"""Данные клиентского отчёта о подсчёте (город / межгород).
+"""Данные клиентского отчёта о подсчёте (город / межгород) и общего отчёта за период.
 
 Превращает data ready-сессии в плоский DTO, который без разбора JSON рисуют
 report_xlsx_service и шаблоны письма. Не ходит в БД: тарифы приходят через
@@ -22,6 +22,10 @@ from app.utils.local_tz import LOCAL_TZ, unix_to_local_naive
 KIND_LABELS = {
     "city": "Міський маршрут",
     "intercity": "Міжміський маршрут",
+}
+KIND_SHORT_LABELS = {
+    "city": "Місто",
+    "intercity": "Міжмісто",
 }
 SOURCE_LABELS = {
     "photo": "фото з камер салону",
@@ -169,6 +173,55 @@ class IntercityReport:
     @property
     def run_count(self) -> int:
         return len(self.runs)
+
+
+@dataclass
+class OverviewDay:
+    day: date
+    kind: str
+    distance_km: float
+    passengers: float
+    revenue: float | None  # None — місто (гроші не рахуємо)
+
+    @property
+    def kind_label(self) -> str:
+        return KIND_SHORT_LABELS.get(self.kind, self.kind)
+
+
+@dataclass
+class OverviewCar:
+    imei: str
+    name: str
+    days: list[OverviewDay] = field(default_factory=list)
+
+    @property
+    def passengers(self) -> float:
+        return sum(d.passengers for d in self.days)
+
+    @property
+    def revenue(self) -> float | None:
+        values = [d.revenue for d in self.days if d.revenue is not None]
+        return round(sum(values), 2) if values else None
+
+
+@dataclass
+class OverviewReport:
+    """Загальний звіт за період: машини акаунта × дні (як на екрані «Виручка 4»)."""
+    title: str
+    from_day: date
+    to_day: date
+    generated_at: datetime
+    cars: list[OverviewCar] = field(default_factory=list)
+    missing: list[OverviewCar] = field(default_factory=list)
+
+    @property
+    def passengers(self) -> float:
+        return sum(c.passengers for c in self.cars)
+
+    @property
+    def revenue(self) -> float | None:
+        values = [c.revenue for c in self.cars if c.revenue is not None]
+        return round(sum(values), 2) if values else None
 
 
 # ── утилиты ──────────────────────────────────────────────────────────
@@ -435,3 +488,43 @@ def build_intercity_report(
 
     report.revenue = round(report.revenue, 2)
     return report
+
+
+def build_overview_report(
+    *,
+    title: str,
+    from_day: date,
+    to_day: date,
+    imeis: list[str],
+    days: list[dict],
+    missing_imeis: list[str],
+    names: dict[str, str],
+) -> OverviewReport:
+    """days — рядки відповіді POST /api/v1/revenue.
+
+    Порядок машин — як в imeis (клієнт передає їх у порядку екрана),
+    дні всередині машини — за датою.
+    """
+    cars: dict[str, OverviewCar] = {}
+    for item in days:
+        imei = str(item.get("imei"))
+        car = cars.setdefault(imei, OverviewCar(imei=imei, name=names.get(imei) or imei))
+        car.days.append(OverviewDay(
+            day=date.fromisoformat(item["day"]),
+            kind=item.get("kind") or "",
+            distance_km=_float(item.get("distance_km")) or 0.0,
+            passengers=_float(item.get("passengers")) or 0.0,
+            revenue=_float(item.get("revenue_uah")),
+        ))
+    for car in cars.values():
+        car.days.sort(key=lambda d: d.day)
+
+    order = {imei: idx for idx, imei in enumerate(imeis)}
+    return OverviewReport(
+        title=title,
+        from_day=from_day,
+        to_day=to_day,
+        generated_at=now_local(),
+        cars=sorted(cars.values(), key=lambda c: order.get(c.imei, len(order))),
+        missing=[OverviewCar(imei=i, name=names.get(i) or i) for i in missing_imeis],
+    )

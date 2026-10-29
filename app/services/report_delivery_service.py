@@ -460,6 +460,34 @@ def recover_stale_sending(db: Session) -> int:
     return int(count or 0)
 
 
+def build_download(db: Session, car: Car, session: CountingSession) -> tuple[bytes, str]:
+    """xlsx дня за запитом (API) — той самий, що йде в листі. -> (bytes, filename).
+
+    Версія узгоджена з надісланими листами: дані не змінилися — номер останнього
+    листа, змінилися — номер наступного.
+    """
+    data = _load_data(session)
+    if data is None:
+        raise ValueError("Немає даних сесії")
+    kind = data.get("kind") or session.kind
+    if kind not in REPORT_KINDS:
+        raise ValueError(f"Звіт для типу «{kind}» не формується")
+
+    last = _last_sent(db, int(car.id), session.count_day, session.count_type)
+    if last is None:
+        version, previous_sent_at = 1, None
+    elif last.data_hash == rds.data_fingerprint(data):
+        version, previous_sent_at = int(last.version or 1), None
+    else:
+        version, previous_sent_at = int(last.version or 0) + 1, last.sent_at
+
+    report = build_report(
+        db, car, data, day=session.count_day, kind=kind,
+        version=version, previous_sent_at=previous_sent_at,
+    )
+    return xlsx.build_xlsx(report), xlsx.report_filename(report.header)
+
+
 def preview(db: Session, car_id: int, day: date, out_dir: Path) -> list[Path]:
     """Собирает xlsx + письмо по текущему агрегату дня в out_dir, без отправки."""
     summary = _summary(db, car_id, day, REPORT_COUNT_TYPE)

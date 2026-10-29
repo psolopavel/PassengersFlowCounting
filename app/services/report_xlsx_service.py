@@ -3,7 +3,8 @@
 Чисті функції: DTO з report_data_service -> bytes. Без БД і мережі.
 
   * місто    — один аркуш «Звіт»;
-  * міжмісто — «Підсумок», «Ходки», «Поїздки» (з цінами тарифу), «Відрізки».
+  * міжмісто — «Підсумок», «Ходки», «Поїздки» (з цінами тарифу), «Відрізки»;
+  * загальний звіт за період — один аркуш «Виручка» (машини × дні).
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ from app.services.report_data_service import (
     REVENUE_DESCRIPTION,
     CityReport,
     IntercityReport,
+    OverviewReport,
     ReportHeader,
     fmt_date,
     fmt_datetime,
@@ -45,6 +47,7 @@ MONEY_FMT = '#,##0.00 "₴"'
 KM_FMT = "0.00"
 INT_FMT = "0"
 TIME_FMT = "HH:MM"
+DATE_FMT = "DD.MM.YYYY"
 DELTA_FMT = "+0;-0;0"
 
 # Ширина колонок «текстового» блоку аркуша-зведення.
@@ -61,6 +64,15 @@ def report_filename(header: ReportHeader) -> str:
     return f"{name}.xlsx"
 
 
+def overview_filename(report: OverviewReport) -> str:
+    """Виручка_2026-10-01_2026-10-29_<акаунт>.xlsx"""
+    title = re.sub(r"[^\w-]+", "_", report.title).strip("_")[:40]
+    name = f"Виручка_{report.from_day.isoformat()}_{report.to_day.isoformat()}"
+    if title:
+        name += f"_{title}"
+    return f"{name}.xlsx"
+
+
 # ── загальні блоки ───────────────────────────────────────────────────
 
 def _text_row_height(text: str, chars_per_line: int = 90) -> float:
@@ -68,10 +80,13 @@ def _text_row_height(text: str, chars_per_line: int = 90) -> float:
     return 15 * lines + 3
 
 
-def _kv(ws: Worksheet, row: int, label: str, value, *, value_font=None, number_format=None) -> int:
+def _kv(
+    ws: Worksheet, row: int, label: str, value, *,
+    value_font=None, number_format=None, wrap: bool = True,
+) -> int:
     ws.cell(row=row, column=1, value=label).font = _BOLD
     cell = ws.cell(row=row, column=2, value=value)
-    cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+    cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=wrap)
     if value_font is not None:
         cell.font = value_font
     if number_format:
@@ -128,6 +143,7 @@ def _write_table(
     *,
     total: list | None = None,
     row_fills: list | None = None,
+    row_fonts: list | None = None,
 ) -> int:
     """Таблиця з шапкою. columns: [(назва, ширина, number_format)]."""
     for idx, (title, width, _fmt) in enumerate(columns, start=1):
@@ -143,6 +159,7 @@ def _write_table(
     row = start_row + 1
     for i, values in enumerate(rows):
         fill = row_fills[i] if row_fills else None
+        font = row_fonts[i] if row_fonts else None
         for idx, value in enumerate(values, start=1):
             cell = ws.cell(row=row, column=idx, value=value)
             cell.border = _BORDER
@@ -152,6 +169,8 @@ def _write_table(
                 cell.number_format = fmt
             if fill is not None:
                 cell.fill = fill
+            if font is not None:
+                cell.font = font
         row += 1
 
     if total is not None:
@@ -325,3 +344,83 @@ def build_xlsx(report: CityReport | IntercityReport) -> bytes:
     if isinstance(report, IntercityReport):
         return build_intercity_xlsx(report)
     return build_city_xlsx(report)
+
+
+# ── загальний звіт за період ─────────────────────────────────────────
+
+def _money_or_dash(value):
+    return value if value is not None else "—"
+
+
+def build_overview_xlsx(report: OverviewReport) -> bytes:
+    wb = Workbook()
+    wb.properties.title = (
+        f"Виручка {fmt_date(report.from_day)} — {fmt_date(report.to_day)}"
+    )
+    wb.properties.creator = "Підрахунок пасажиропотоку"
+    ws = wb.active
+    ws.title = "Виручка"
+
+    ws.cell(row=1, column=1, value="Звіт про пасажирів і виручку").font = _TITLE_FONT
+    row = 3
+    if report.title:
+        row = _kv(ws, row, "Акаунт", report.title, wrap=False)
+    row = _kv(ws, row, "Період",
+              f"{fmt_date(report.from_day)} — {fmt_date(report.to_day)}", wrap=False)
+    row = _kv(ws, row, "Авто з даними", len(report.cars), number_format=INT_FMT, wrap=False)
+    row = _kv(ws, row, "Звіт сформовано", fmt_datetime(report.generated_at), wrap=False)
+    row += 1
+    row = _kv(ws, row, "Пасажирів за період", report.passengers,
+              value_font=_BIG_BOLD, wrap=False)
+    row = _kv(ws, row, "Виручка за період", _money_or_dash(report.revenue),
+              value_font=_BIG_BOLD, number_format=MONEY_FMT, wrap=False)
+    row += 1
+
+    if report.cars:
+        columns = [
+            ("Авто", _LABEL_WIDTH, None),
+            ("IMEI", 18, None),
+            ("Дата", 14, DATE_FMT),
+            ("Кілометраж, км", 14, KM_FMT),
+            ("Пасажири", 11, None),
+            ("Виручка", 15, MONEY_FMT),
+            ("Тип", 11, None),
+        ]
+        rows, fills, fonts = [], [], []
+        for car in report.cars:
+            for d in car.days:
+                rows.append([
+                    car.name, car.imei, d.day, d.distance_km, d.passengers,
+                    _money_or_dash(d.revenue), d.kind_label,
+                ])
+                fills.append(None)
+                fonts.append(None)
+            rows.append([
+                car.name, car.imei, "Разом по авто", "", car.passengers,
+                _money_or_dash(car.revenue), "",
+            ])
+            fills.append(_TOTAL_FILL)
+            fonts.append(_BOLD)
+        total = [
+            "Разом", f"{len(report.cars)} авто", "", "",
+            report.passengers, _money_or_dash(report.revenue), "",
+        ]
+        table_row = row
+        row = _write_table(ws, table_row, columns, rows,
+                           total=total, row_fills=fills, row_fonts=fonts)
+        ws.freeze_panes = f"A{table_row + 1}"
+    else:
+        ws.column_dimensions["A"].width = _LABEL_WIDTH
+        ws.cell(row=row, column=1, value="Немає даних за вибраний період").font = _NOTE_FONT
+        row += 1
+
+    if report.missing:
+        row += 1
+        ws.cell(row=row, column=1, value="Немає даних по авто").font = _BIG_BOLD
+        row += 1
+        for car in report.missing:
+            ws.cell(row=row, column=1, value=car.name)
+            ws.cell(row=row, column=2, value=car.imei)
+            row += 1
+
+    return _to_bytes(wb)

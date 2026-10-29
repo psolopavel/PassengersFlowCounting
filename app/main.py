@@ -37,6 +37,17 @@ app.add_middleware(
 
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
+
+@app.middleware("http")
+async def _revalidate_static_code(request: Request, call_next):
+    # JS/CSS без версии в URL (ES-модули импортируют друг друга по голому пути):
+    # браузер обязан сверяться с сервером (304 по ETag), иначе после деплоя крутит старый код.
+    response = await call_next(request)
+    path = request.url.path
+    if path.startswith("/static/") and path.endswith((".js", ".css")):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
 app.include_router(auth.router)
 app.include_router(counters.router)
 app.include_router(cars.router)

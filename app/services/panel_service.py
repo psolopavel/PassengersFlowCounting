@@ -33,6 +33,8 @@ PANEL_TYPE_LABELS = {
     "final_stops": "Кінцеві зупинки",
 }
 
+DELETED_COUNTER_LABEL = "видалений рахувальник"
+
 SESSION_STATUS_LABELS = {
     None: "не підраховано",
     "in_progress": "в процессі",
@@ -233,7 +235,7 @@ def _external_done_map(
         select(CountingSession, User.name, User.email)
         .join(User, User.id == CountingSession.counter_id, isouter=True)
         .where(
-            CountingSession.counter_id != counter_id,
+            CountingSession.counter_id.is_distinct_from(counter_id),
             CountingSession.count_day == day,
             CountingSession.count_type == count_type,
             CountingSession.status == "ready",
@@ -244,7 +246,10 @@ def _external_done_map(
     for sess, name, email in rows:
         if sess.car_id in out:
             continue
-        who = (name or email or f"#{sess.counter_id}").strip()
+        if sess.counter_id is None:
+            who = DELETED_COUNTER_LABEL
+        else:
+            who = (name or email or f"#{sess.counter_id}").strip()
         out[sess.car_id] = (sess, who)
     return out
 
@@ -260,7 +265,7 @@ def _external_done_in_range(
     """Пари (car_id, day), підраховані (ready) іншими рахувальниками у діапазоні."""
     rows = db.execute(
         select(CountingSession.car_id, CountingSession.count_day).where(
-            CountingSession.counter_id != counter_id,
+            CountingSession.counter_id.is_distinct_from(counter_id),
             CountingSession.count_day >= from_day,
             CountingSession.count_day <= to_day,
             CountingSession.count_type == count_type,

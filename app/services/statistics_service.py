@@ -166,7 +166,7 @@ def analyze(
             ).scalars()
         } if related_ids else {}
     else:
-        related_ids = {s.counter_id for s in sessions}
+        related_ids = {s.counter_id for s in sessions if s.counter_id is not None}
         related = {
             u.id: u
             for u in db.execute(
@@ -210,6 +210,13 @@ def analyze(
                 "id": s.car_id,
                 "title": (car.name or car.imei) if car else f"#{s.car_id}",
                 "subtitle": car.imei if car else "",
+                "photo_url": None,
+            }
+        elif s.counter_id is None:
+            row["entity"] = {
+                "id": None,
+                "title": "Видалений рахувальник",
+                "subtitle": "",
                 "photo_url": None,
             }
         else:

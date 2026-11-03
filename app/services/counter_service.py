@@ -150,5 +150,7 @@ def update_counter(
 
 
 def delete_counter(db: Session, user: User) -> None:
-    db.delete(user)  # counters удалится каскадом (cascade + FK ON DELETE CASCADE)
+    # counters и schedules удаляются каскадом; в counting_sessions counter_id
+    # станет NULL (FK ON DELETE SET NULL) — подсчёты, письма и API сохраняются.
+    db.delete(user)
     db.commit()

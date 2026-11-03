@@ -17,7 +17,9 @@ class CountingSession(Base):
     __tablename__ = "counting_sessions"
 
     id = Column(BIGINT(unsigned=True), primary_key=True, autoincrement=True)
-    counter_id = Column(BIGINT(unsigned=True), nullable=False)
+    # NULL — рахувальника видалено (FK ON DELETE SET NULL): сесія лишається,
+    # бо на неї посилаються counting_daily_summary та report_deliveries.
+    counter_id = Column(BIGINT(unsigned=True), nullable=True)
     car_id = Column(BIGINT(unsigned=True), nullable=False)
     count_day = Column(Date, nullable=False)
     time_spent_sec = Column(INTEGER(unsigned=True), nullable=False, default=0)

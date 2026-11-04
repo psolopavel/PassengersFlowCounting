@@ -135,31 +135,40 @@ def revenue_summary_xlsx(payload: RevenueXlsxRequest, db: Session = Depends(get_
 def _revenue_days(
     db: Session, imeis: list[str], from_day: date, to_day: date
 ) -> tuple[list[dict], list[str]]:
-    """-> (дни из агрегата с выручкой межгорода, imei без ready-дней)."""
+    """-> (дни из агрегата с выручкой межгорода, imei без ready-дней).
+
+    Дни со status=skipped тоже возвращаются (вердикт «пропущено» + comment),
+    числа в них 0 и выручка не считается.
+    """
     rows = db.execute(
         select(CountingDailySummary)
         .where(
             CountingDailySummary.imei.in_(imeis),
             CountingDailySummary.count_day >= from_day,
             CountingDailySummary.count_day <= to_day,
-            CountingDailySummary.status == "ready",
+            CountingDailySummary.status.in_(("ready", "skipped")),
         )
         .order_by(CountingDailySummary.imei, CountingDailySummary.count_day)
     ).scalars().all()
 
     days: list[dict] = []
-    seen_imeis: set[str] = set()
+    ready_imeis: set[str] = set()
     for row in rows:
-        seen_imeis.add(row.imei)
         item = {
             "imei": row.imei,
             "day": row.count_day.isoformat(),
             "kind": row.kind,
+            "status": row.status,
             "distance_km": float(row.distance_km),
             "passengers": float(row.passengers_total),
             "revenue_uah": None,
             "warnings": [],
+            "comment": row.comment,
         }
+        if row.status != "ready":
+            days.append(item)
+            continue
+        ready_imeis.add(row.imei)
         if row.kind == "intercity":
             trips = _parse_trips(row.trips_json)
             revenue, warnings = rev.compute_revenue(
@@ -169,7 +178,7 @@ def _revenue_days(
             item["warnings"] = warnings
         days.append(item)
 
-    missing_imeis = [i for i in imeis if i not in seen_imeis]
+    missing_imeis = [i for i in imeis if i not in ready_imeis]
     return days, missing_imeis
 
 

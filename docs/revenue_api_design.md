@@ -246,27 +246,48 @@ docs/revenue_api_design.md          # этот документ
       "imei": "350612070000000",
       "day": "2026-09-03",
       "kind": "intercity",
+      "status": "ready",
       "distance_km": 126.62,
       "passengers": 143,
       "revenue_uah": 5820,
-      "warnings": []            // напр. ["no_pair_price:280:2855-2870"]
+      "warnings": [],           // напр. ["no_pair_price:280:2855-2870"]
+      "comment": null           // нотатка рахувальника (или null)
     },
     {
       "imei": "350612070000000",
       "day": "2026-09-04",
       "kind": "city",
+      "status": "ready",
       "distance_km": 88.10,
       "passengers": 402,
-      "revenue_uah": null       // город: деньги не считаем
+      "revenue_uah": null,      // город: деньги не считаем
+      "warnings": [],
+      "comment": "Камера 2 не працювала після 15:00"
+    },
+    {
+      "imei": "350612070000000",
+      "day": "2026-09-05",
+      "kind": "city",
+      "status": "skipped",      // пропущено: числа 0, выручки нет
+      "distance_km": 0,
+      "passengers": 0,
+      "revenue_uah": null,
+      "warnings": [],
+      "comment": "Немає відео з камер"   // причина пропуску (или null)
     }
   ],
   "missing_imeis": ["350612070000001"]  // imei без единого ready-дня в диапазоне
 }
 ```
 Реализация: один `SELECT` из `counting_daily_summary` по `imei IN (...)` и
-`count_day BETWEEN ...`, `status='ready'`. Затем для межгорода — резолвим
-`car_route_tariffs` + `tariffs.prices` и считаем `revenue_uah` из `trips_json`.
-`data` не читаем.
+`count_day BETWEEN ...`, `status IN ('ready','skipped')`. Затем для межгорода
+(только `ready`) — резолвим `car_route_tariffs` + `tariffs.prices` и считаем
+`revenue_uah` из `trips_json`. `data` не читаем.
+
+`status = 'skipped'` — вердикт «день пропущено» с причиной в `comment`; числа в
+такой строке не являются результатом подсчёта (0), суммировать/считать дни работы
+нужно только по `status = 'ready'`. Общий xlsx (`/revenue/xlsx`) пропуски не
+включает.
 
 `missing_imeis` — только те imei из запроса, по которым в диапазоне нет ни одного
 ready-дня (нет данных / неизвестный imei). Пропуски по отдельным дням не

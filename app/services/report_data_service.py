@@ -503,10 +503,13 @@ def build_overview_report(
     """days — рядки відповіді POST /api/v1/revenue.
 
     Порядок машин — як в imeis (клієнт передає їх у порядку екрана),
-    дні всередині машини — за датою.
+    дні всередині машини — за датою. Пропущені дні (status=skipped) у звіт
+    не потрапляють: чисел у них немає.
     """
     cars: dict[str, OverviewCar] = {}
     for item in days:
+        if (item.get("status") or "ready") != "ready":
+            continue
         imei = str(item.get("imei"))
         car = cars.setdefault(imei, OverviewCar(imei=imei, name=names.get(imei) or imei))
         car.days.append(OverviewDay(

@@ -198,15 +198,16 @@ def schedule_for_day(
 ) -> ReportDelivery | None:
     """Синхронизирует очередь с текущим агрегатом дня.
 
-    summary — результат summary_service.materialize_day (None, если ready-сессии
-    больше нет). Те же данные, что уже в очереди/отправлены, новой строки не дают.
+    summary — результат summary_service.materialize_day (None, если ready/skipped
+    сессии больше нет; skipped-строка письма не порождает). Те же данные, что уже
+    в очереди/отправлены, новой строки не дают.
     """
     settings = get_settings()
     if not settings.report_emails_enabled or count_type != REPORT_COUNT_TYPE:
         return None
 
     pending = _day_rows(db, car_id, day, count_type, ("pending",))
-    if summary is None or summary.kind not in REPORT_KINDS:
+    if summary is None or summary.status != "ready" or summary.kind not in REPORT_KINDS:
         if pending:
             _cancel(pending, "Підрахунок більше не завершений")
             db.commit()
@@ -491,7 +492,7 @@ def build_download(db: Session, car: Car, session: CountingSession) -> tuple[byt
 def preview(db: Session, car_id: int, day: date, out_dir: Path) -> list[Path]:
     """Собирает xlsx + письмо по текущему агрегату дня в out_dir, без отправки."""
     summary = _summary(db, car_id, day, REPORT_COUNT_TYPE)
-    if summary is None or summary.kind not in REPORT_KINDS:
+    if summary is None or summary.status != "ready" or summary.kind not in REPORT_KINDS:
         raise ValueError("Немає ready-підрахунку city/intercity за цей день")
     data = _load_data(db.get(CountingSession, int(summary.session_id)))
     car = db.get(Car, int(car_id))

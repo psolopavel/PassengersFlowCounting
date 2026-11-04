@@ -1,12 +1,14 @@
-"""Материализация ready-сессии в агрегат counting_daily_summary.
+"""Материализация завершённой сессии (ready / skipped) в агрегат counting_daily_summary.
 
 Тяжёлый разбор data (FIFO пассажиров, километраж) делается здесь — один раз
 при завершении сессии, а не на каждом запросе внешнего API. Выручка НЕ
 хранится: считается на чтении из trips_json по актуальному тарифу.
 
 Каноническая строка на (car_id, count_day, count_type): при нескольких сессиях
-разных рахувальников берём ready с максимальным updated_at. Если ready-сессии
-за день и count_type нет — строка агрегата удаляется.
+разных рахувальников берём ready с максимальным updated_at, а если ready нет —
+последнюю skipped. Skipped-строка — вердикт «день пропущено» (+ comment): чисел
+в ней нет (0 / NULL), в gps.passengers, API выручки и письма она не попадает.
+Если нет ни ready, ни skipped — строка агрегата удаляется.
 
 Точки вызова (хуки): set_status(ready), финальные автосейвы города/межгорода,
 reset/rebuild/skip/delete — всё сводится к materialize_day(db, car_id, day).
@@ -44,16 +46,19 @@ def _best_session(
     *,
     count_type: str = COUNT_TYPE_FULL_DAY,
 ) -> CountingSession | None:
-    """Каноническая ready-сессия дня: последняя по updated_at."""
+    """Каноническая сессия дня: последняя ready, иначе последняя skipped."""
     return db.execute(
         select(CountingSession)
         .where(
             CountingSession.car_id == car_id,
             CountingSession.count_day == day,
-            CountingSession.status == "ready",
+            CountingSession.status.in_(("ready", "skipped")),
             CountingSession.count_type == count_type,
         )
-        .order_by(CountingSession.updated_at.desc())
+        .order_by(
+            (CountingSession.status == "ready").desc(),
+            CountingSession.updated_at.desc(),
+        )
         .limit(1)
     ).scalars().first()
 
@@ -95,9 +100,27 @@ def _distance_km(data: dict) -> float:
 
 
 def _summary_fields(session: CountingSession, data: dict, imei: str) -> dict:
-    """Готовит поля агрегата из data сессии (без выручки)."""
+    """Готовит поля агрегата из data сессии (без выручки).
+
+    Skipped: числа не считаются — частично введённые до пропуска данные
+    не являются результатом подсчёта.
+    """
     kind = data.get("kind") or session.kind
     count_type = session.count_type or COUNT_TYPE_FULL_DAY
+    if session.status != "ready":
+        return {
+            "session_id": int(session.id),
+            "car_id": int(session.car_id),
+            "imei": imei,
+            "count_day": session.count_day,
+            "kind": kind if kind in ("city", "intercity", "final_stop") else "city",
+            "count_type": count_type,
+            "status": session.status,
+            "distance_km": 0,
+            "passengers_total": 0,
+            "trips_json": None,
+            "comment": comment_from_data(data),
+        }
     if kind == "intercity":
         trips, passengers, _warnings = rev.compute_intercity_passengers(data)
         trips_json = json.dumps(trips, ensure_ascii=False)
@@ -162,7 +185,8 @@ def materialize_day(
 ) -> CountingDailySummary | None:
     """Пересобирает каноническую строку агрегата для (car_id, day, count_type).
 
-    Нет ready-сессии для count_type → удаляет строку агрегата з тим самим count_type.
+    Нет ни ready, ни skipped сессии для count_type → удаляет строку агрегата
+    з тим самим count_type.
     """
     session = _best_session(db, car_id, day, count_type=count_type)
     existing = _get_summary(db, car_id, day, count_type=count_type)
@@ -176,6 +200,9 @@ def materialize_day(
         return None
 
     data = _parse_data(session)
+    if data is None and session.status == "skipped":
+        # Пропуск без жодних даних (data = NULL) — вердикт однаково фіксуємо.
+        data = {}
     if data is None:
         if existing is not None:
             if existing.kind == "city" and existing.imei:
@@ -190,7 +217,12 @@ def materialize_day(
         imei = str(car.imei).strip()
 
     fields = _summary_fields(session, data, imei)
-    was_city = existing is not None and existing.kind == "city" and existing.imei
+    was_city = (
+        existing is not None
+        and existing.status == "ready"
+        and existing.kind == "city"
+        and existing.imei
+    )
     if existing is None:
         existing = CountingDailySummary(**fields)
         db.add(existing)
@@ -199,7 +231,7 @@ def materialize_day(
             setattr(existing, key, value)
     db.commit()
     db.refresh(existing)
-    if fields["kind"] == "city" and imei:
+    if fields["status"] == "ready" and fields["kind"] == "city" and imei:
         _sync_gps_city(imei, day, float(fields["passengers_total"]))
     elif was_city:
         _delete_gps_city(existing.imei, day)

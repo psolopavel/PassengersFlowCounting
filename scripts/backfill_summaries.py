@@ -1,4 +1,4 @@
-"""Разовый бэкофилл агрегата counting_daily_summary по существующим ready-сессиям.
+"""Разовый бэкофилл агрегата counting_daily_summary по существующим ready/skipped-сессиям.
 
 Запускать НА СЕРВЕРЕ (нужен доступ к БД) ПОСЛЕ применения sql/revenue_summary.sql:
 
@@ -26,10 +26,10 @@ def main() -> None:
                 CountingSession.count_day,
                 CountingSession.count_type,
             )
-            .where(CountingSession.status == "ready")
+            .where(CountingSession.status.in_(("ready", "skipped")))
             .distinct()
         ).all()
-        print(f"Знайдено пар (car, day, count_type) з ready-сесіями: {len(pairs)}")
+        print(f"Знайдено пар (car, day, count_type) з ready/skipped-сесіями: {len(pairs)}")
         for car_id, count_day, count_type in pairs:
             try:
                 summary_service.materialize_day(

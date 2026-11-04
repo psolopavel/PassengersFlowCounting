@@ -510,31 +510,28 @@ def count_skip(
     return RedirectResponse(url, status_code=HTTP_303_SEE_OTHER)
 
 
-@router.post("/count/{car_id}/skip-comment")
-async def count_skip_comment_update(
+@router.post("/count/{car_id}/comment")
+async def count_comment_update(
     car_id: int,
     request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_panel_access),
 ):
-    """Оновлення причини пропуску для сесії зі status=skipped."""
+    """Нотатка рахувальника до сесії (будь-який статус): {day, comment, panelType?, counter_id?}."""
     body = await request.json()
     ref_day = _parse_day(body.get("day", "")) or _today_local()
     target_id = _target_counter_id(user, body.get("counter_id"))
 
-    count_type = count_type_for_panel(body.get("panelType") or "whole_day")
+    panel_type = _parse_panel_type(body.get("panelType") or "whole_day")
+    count_type = count_type_for_panel(panel_type)
     session = css.get_session(db, target_id, car_id, ref_day, count_type=count_type)
     if session is None:
         return JSONResponse({"ok": False, "error": "session_not_found"}, status_code=404)
-    if session.status != "skipped":
-        return JSONResponse({"ok": False, "error": "not_skipped"}, status_code=400)
 
-    comment = (body.get("comment") or "").strip()
-    try:
-        css.update_skip_comment(db, session, comment or None)
-    except ValueError:
-        return JSONResponse({"ok": False, "error": "not_skipped"}, status_code=400)
+    css.update_comment(db, session, body.get("comment"))
+    summary_service.safe_sync_comment(db, session)
 
+    comment = css.comment_from_data(css.load_data(session)) or ""
     return JSONResponse({"ok": True, "comment": comment})
 
 
@@ -618,16 +615,20 @@ def count_rebuild(
             )
         chosen_kind = _parse_route_kind(route_kind) or current_kind
 
-    was_flexible = bool((css.load_data(session) or {}).get("counter_choice"))
+    old_data = css.load_data(session) or {}
+    was_flexible = bool(old_data.get("counter_choice"))
+    old_comment = css.comment_from_data(old_data)
 
     css.delete_session(db, session)
     try:
-        css.start_or_get(
+        new_session = css.start_or_get(
             db, gps_db, routes_db,
             counter_id=target_id, car=car, day=ref_day, flexible=was_flexible,
             route_kind=chosen_kind,
             panel_type=panel_type,
         )
+        if old_comment:
+            css.update_comment(db, new_session, old_comment)
     except Exception as exc:  # noqa: BLE001
         db.rollback()
         flash(request, f"Не вдалося перезібрати дані: {exc}", "error")

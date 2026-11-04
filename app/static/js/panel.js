@@ -312,22 +312,22 @@ function initDayPicker() {
     input.addEventListener("input", resetInvalid);
 }
 
-// ---------- Модалка причини пропуску (перегляд / редагування) ----------
-function initSkipCommentModal() {
-    const modal = document.getElementById("skipCommentModal");
+// ---------- Модалка коментаря до підрахунку (будь-який статус сесії) ----------
+function initSessionCommentModal() {
+    const modal = document.getElementById("sessionCommentModal");
     if (!modal) return;
 
-    const textarea = document.getElementById("skipCommentEdit");
-    const title = document.getElementById("skipCommentModalTitle");
-    const hint = document.getElementById("skipCommentModalHint");
-    const saveBtn = document.getElementById("skipCommentSave");
-    const statusEl = document.getElementById("skipCommentEditStatus");
+    const textarea = document.getElementById("sessionCommentEdit");
+    const hint = document.getElementById("sessionCommentModalHint");
+    const saveBtn = document.getElementById("sessionCommentSave");
+    const statusEl = document.getElementById("sessionCommentEditStatus");
     let activeBtn = null;
 
     const updateBtnState = (btn, comment) => {
-        const text = comment || "";
-        btn.dataset.skipComment = text;
-        btn.title = text.trim() ? "Причина пропуску" : "Додати причину пропуску";
+        const text = (comment || "").trim();
+        btn.dataset.sessionComment = text;
+        btn.title = text || "Додати коментар";
+        btn.classList.toggle("has-comment", Boolean(text));
     };
 
     const close = () => {
@@ -343,11 +343,11 @@ function initSkipCommentModal() {
         activeBtn = btn;
         const car = btn.dataset.carName || "";
         const day = btn.dataset.dayDisplay || "";
-        if (textarea) textarea.value = btn.dataset.skipComment || "";
-        if (title) title.textContent = "Причина пропуску";
+        const statusLabel = btn.dataset.statusLabel || "";
+        if (textarea) textarea.value = btn.dataset.sessionComment || "";
         if (hint) {
             hint.textContent = car && day
-                ? `Пропущено: ${car} за ${day}`
+                ? `${car} за ${day}${statusLabel ? ` · ${statusLabel}` : ""}`
                 : "";
         }
         if (statusEl) {
@@ -358,7 +358,7 @@ function initSkipCommentModal() {
         if (textarea) textarea.focus();
     };
 
-    document.querySelectorAll(".skip-comment-trigger").forEach((btn) => {
+    document.querySelectorAll(".session-comment-trigger").forEach((btn) => {
         btn.addEventListener("click", () => open(btn));
     });
 
@@ -373,12 +373,13 @@ function initSkipCommentModal() {
 
             saveBtn.disabled = true;
             try {
-                const res = await fetch(`/panel/count/${carId}/skip-comment`, {
+                const res = await fetch(`/panel/count/${carId}/comment`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         day,
                         comment,
+                        panelType: activeBtn.dataset.scheduleType || "whole_day",
                         counter_id: counterId ? Number(counterId) : null,
                     }),
                 });
@@ -392,7 +393,6 @@ function initSkipCommentModal() {
                 if (statusEl) {
                     const messages = {
                         session_not_found: "Сесію не знайдено",
-                        not_skipped: "Підрахунок більше не пропущено",
                     };
                     statusEl.textContent = messages[e.message] || "Не вдалося зберегти коментар";
                     statusEl.classList.remove("hidden");
@@ -403,7 +403,7 @@ function initSkipCommentModal() {
         });
     }
 
-    modal.querySelectorAll("[data-close-skip-comment-modal]").forEach((el) => {
+    modal.querySelectorAll("[data-close-session-comment-modal]").forEach((el) => {
         el.addEventListener("click", close);
     });
     modal.addEventListener("click", (e) => {
@@ -531,7 +531,7 @@ document.addEventListener("DOMContentLoaded", () => {
     initCommentModal();
     initDayPicker();
     initActionMenus();
-    initSkipCommentModal();
+    initSessionCommentModal();
     initSkipModal();
     initRouteKindToggle();
     initReload();

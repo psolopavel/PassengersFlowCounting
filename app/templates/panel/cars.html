@@ -53,15 +53,19 @@
         {% if row.flexible and row.remaining and row.remaining > 1 %}
         <span class="pill pill-status pill-status-none" title="Скільки підрахунків лишилось цього тижня">залишилось {{
             row.remaining }}</span>
-        {% elif row.status == 'skipped' %}
-        <button type="button" class="pill pill-status pill-status-skipped skip-comment-trigger"
+        {% elif row.status and not row.counted_by_other %}
+        <button type="button"
+            class="pill pill-status pill-status-{{ row.status }} session-comment-trigger{% if row.session_comment %} has-comment{% endif %}"
             data-car-id="{{ row.car.id }}"
             data-day="{{ ref_day.isoformat() }}"
             data-day-display="{{ ref_day.strftime('%d.%m.%Y') }}"
             data-car-name="{{ row.car.name or row.car.imei }}"
-            data-skip-comment="{{ row.skip_comment or '' }}"
+            data-status="{{ row.status }}"
+            data-status-label="{{ row.status_label }}"
+            data-schedule-type="{{ row.schedule_type }}"
+            data-session-comment="{{ row.session_comment or '' }}"
             {% if selected_counter_id %}data-counter-id="{{ selected_counter_id }}"{% endif %}
-            title="{% if row.skip_comment %}Причина пропуску{% else %}Додати причину пропуску{% endif %}">
+            title="{% if row.session_comment %}{{ row.session_comment }}{% else %}Додати коментар{% endif %}">
             {{ row.status_label }}
         </button>
         {% else %}
@@ -343,23 +347,23 @@
     </div>
 </div>
 
-<!-- Модалка причини пропуску -->
-<div class="modal-overlay hidden" id="skipCommentModal">
+<!-- Модалка коментаря до підрахунку (будь-який статус сесії) -->
+<div class="modal-overlay hidden" id="sessionCommentModal">
     <div class="modal">
         <div class="modal-header">
-            <h3 id="skipCommentModalTitle">Причина пропуску</h3>
-            <button type="button" class="modal-close" data-close-skip-comment-modal aria-label="Закрити">✕</button>
+            <h3 id="sessionCommentModalTitle">Коментар до підрахунку</h3>
+            <button type="button" class="modal-close" data-close-session-comment-modal aria-label="Закрити">✕</button>
         </div>
         <div class="modal-body">
-            <p class="modal-hint" id="skipCommentModalHint"></p>
-            <label for="skipCommentEdit" class="modal-label">Коментар</label>
-            <textarea id="skipCommentEdit" class="modal-textarea" rows="4"
-                placeholder="Вкажіть причину пропуску…"></textarea>
-            <p class="modal-hint modal-save-status hidden" id="skipCommentEditStatus"></p>
+            <p class="modal-hint" id="sessionCommentModalHint"></p>
+            <label for="sessionCommentEdit" class="modal-label">Коментар</label>
+            <textarea id="sessionCommentEdit" class="modal-textarea" rows="4" maxlength="2000"
+                placeholder="Нотатки до підрахунку…"></textarea>
+            <p class="modal-hint modal-save-status hidden" id="sessionCommentEditStatus"></p>
         </div>
         <div class="modal-footer">
-            <button type="button" class="btn btn-sm" data-close-skip-comment-modal>Скасувати</button>
-            <button type="button" class="btn btn-sm btn-count" id="skipCommentSave">Зберегти</button>
+            <button type="button" class="btn btn-sm" data-close-session-comment-modal>Скасувати</button>
+            <button type="button" class="btn btn-sm btn-count" id="sessionCommentSave">Зберегти</button>
         </div>
     </div>
 </div>
@@ -379,7 +383,7 @@
             <div class="modal-body">
                 <p class="modal-hint" id="skipModalHint"></p>
                 <label for="skipComment" class="modal-label">Причина пропуску</label>
-                <textarea id="skipComment" name="comment" class="modal-textarea" rows="4"
+                <textarea id="skipComment" name="comment" class="modal-textarea" rows="4" maxlength="2000"
                     placeholder="Коментар (необов'язково)"></textarea>
             </div>
             <div class="modal-footer">

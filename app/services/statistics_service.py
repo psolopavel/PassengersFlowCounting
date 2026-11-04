@@ -1,7 +1,7 @@
 """Статистика підрахунків для менеджера (сторінка /admin/statistics).
 
-Дані беруться з колонок `counting_sessions`; з JSON `data` читається лише `skip_comment`
-для пропущених сесій,
+Дані беруться з колонок `counting_sessions`; з JSON `data` читається лише `comment`
+(нотатка рахувальника; для пропущених — причина пропуску),
 з приєднанням `cars` / `users` для назв та фото. Два виміри:
 
   * by_counter (за замовчуванням) — обираємо рахувальника, у списку машини;
@@ -22,6 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Car, CountingSession, User
+from app.services.counting_session_service import comment_from_data
 from app.utils.local_tz import LOCAL_TZ, local_today
 
 DIMENSIONS = ("counter", "car")
@@ -101,13 +102,6 @@ def _parse_session_data(raw) -> dict:
         return json.loads(raw) if isinstance(raw, str) else dict(raw)
     except (json.JSONDecodeError, TypeError, ValueError):
         return {}
-
-
-def _skip_comment_from_data(status: str, raw_data) -> str | None:
-    if status != "skipped":
-        return None
-    text = (_parse_session_data(raw_data).get("skip_comment") or "").strip()
-    return text or None
 
 
 def _session_kind_key(session: CountingSession) -> str:
@@ -201,7 +195,7 @@ def analyze(
             "kind_label": _session_kind_label(s),
             "count_type": getattr(s, "count_type", None) or "full_day",
             "overdue": overdue,
-            "skip_comment": _skip_comment_from_data(s.status, s.data),
+            "comment": comment_from_data(_parse_session_data(s.data)),
         }
 
         if dimension == "counter":

@@ -7,7 +7,7 @@
 `trips_json` по тарифу, актуальному на `count_day`.
 """
 
-from sqlalchemy import Column, Date, DateTime, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import Column, Date, DateTime, ForeignKey, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.mysql import BIGINT, DECIMAL, ENUM, INTEGER, LONGTEXT
 
 from app.database import Base
@@ -42,6 +42,8 @@ class CountingDailySummary(Base):
     passengers_total = Column[float](DECIMAL(unsigned=True), nullable=False, default=0)
     # Межгород: JSON-массив [{route_id, from_id, to_id, pax}]. Город: NULL.
     trips_json = Column(LONGTEXT, nullable=True)
+    # Копія data.comment сесії — нотатка рахувальника, для швидкого доступу.
+    comment = Column(Text, nullable=True)
     computed_at = Column(
         DateTime, nullable=False, server_default=func.now(), onupdate=func.now()
     )

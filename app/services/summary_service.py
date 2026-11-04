@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.database import GpsSession
@@ -25,7 +25,7 @@ from app.models import Car, CountingDailySummary, CountingSession
 from app.services import gps_passengers_service as gps_pass
 from app.services import report_delivery_service
 from app.services import revenue_service as rev
-from app.services.counting_session_service import COUNT_TYPE_FULL_DAY
+from app.services.counting_session_service import COUNT_TYPE_FULL_DAY, comment_from_data
 
 
 def _parse_data(session: CountingSession) -> dict | None:
@@ -122,6 +122,7 @@ def _summary_fields(session: CountingSession, data: dict, imei: str) -> dict:
         "distance_km": _distance_km(data),
         "passengers_total": float(passengers),
         "trips_json": trips_json,
+        "comment": comment_from_data(data),
     }
 
 
@@ -203,6 +204,28 @@ def materialize_day(
     elif was_city:
         _delete_gps_city(existing.imei, day)
     return existing
+
+
+def safe_sync_comment(db: Session, session: CountingSession) -> None:
+    """Оновлює лише comment в агрегаті цієї сесії — без повної матеріалізації.
+
+    Числа не змінились, тож перерахунок і черга звітів тут не потрібні.
+    Агрегат є лише для ready-сесій; для інших рядків просто нічого не оновиться.
+    """
+    try:
+        db.execute(
+            update(CountingDailySummary)
+            .where(CountingDailySummary.session_id == int(session.id))
+            .values(
+                comment=comment_from_data(_parse_data(session)),
+                # computed_at = собі: нотатка не є перерахунком даних.
+                computed_at=CountingDailySummary.computed_at,
+            )
+            .execution_options(synchronize_session=False)
+        )
+        db.commit()
+    except Exception:  # noqa: BLE001
+        db.rollback()
 
 
 def safe_materialize_day(

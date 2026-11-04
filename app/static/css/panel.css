@@ -710,7 +710,7 @@ button.pill.route-kind-toggle:active {
     border-style: dashed;
 }
 
-button.pill-status-skipped {
+button.session-comment-trigger {
     cursor: pointer;
     font: inherit;
     line-height: inherit;
@@ -718,9 +718,20 @@ button.pill-status-skipped {
     transition: opacity 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
-button.pill-status-skipped:hover {
+button.session-comment-trigger:hover {
     color: var(--text);
     border-color: var(--accent);
+}
+
+button.session-comment-trigger.has-comment::after {
+    content: "";
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-left: 0.35em;
+    border-radius: 50%;
+    background: var(--accent);
+    vertical-align: middle;
 }
 
 /* ---------- Buttons ---------- */

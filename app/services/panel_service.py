@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models import Car, CountingSession, Schedule, Tracker, User
 from app.services.car_service import parse_schedule_to_local
-from app.services.counting_session_service import count_type_for_panel
+from app.services.counting_session_service import comment_from_data, count_type_for_panel
 from app.services.schedule_service import is_scheduled_on, normalize_type
 from app.utils.local_tz import combine_local, local_today, parse_hhmm
 
@@ -612,7 +612,7 @@ def _make_external_done_row(
         "remaining": None,
         "overdue": False,
         "comment": comment,
-        "skip_comment": None,
+        "session_comment": None,
         "counted_by_other": True,
         "other_counter_name": who,
         "schedule_type": schedule_type,
@@ -694,10 +694,6 @@ def _make_row(
     session_data = _parse_json(session.data) if session and session.data else None
     is_flexible_session = bool(session_data and session_data.get("counter_choice"))
     can_delete = is_flexible_session and status in ("skipped", "ready")
-    skip_comment = None
-    if status == "skipped" and session_data:
-        raw_skip = (session_data.get("skip_comment") or "").strip()
-        skip_comment = raw_skip or None
 
     return {
         "car": car,
@@ -723,7 +719,7 @@ def _make_row(
         "remaining": None,
         "overdue": status not in _DONE_STATUSES and today_local > deadline,
         "comment": comment,
-        "skip_comment": skip_comment,
+        "session_comment": comment_from_data(session_data),
         "counted_by_other": False,
         "other_counter_name": None,
         "schedule_type": schedule_type,
@@ -788,6 +784,7 @@ def _make_flexible_row(
         "remaining": remaining,
         "overdue": False,
         "comment": comment,
+        "session_comment": None,
         "schedule_type": schedule_type,
         "count_url": (
             f"/panel/count/{car.id}?day={ref_day.isoformat()}"

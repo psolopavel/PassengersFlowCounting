@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.models import CountingSession
@@ -30,6 +30,12 @@ WHOLE_DAY_KINDS = ("city", "intercity")
 FINAL_STOP_KIND = "final_stop"
 COUNT_TYPE_FULL_DAY = "full_day"
 COUNT_TYPE_FINISH_STOPS = "finish_stops"
+
+# Нотатка рахувальника до сесії (будь-який статус) — data.comment.
+# skip_comment — стара назва ключа (лише причина пропуску), читається як запасна.
+COMMENT_KEY = "comment"
+_LEGACY_COMMENT_KEY = "skip_comment"
+COMMENT_MAX_LEN = 2000
 
 
 def count_type_for_panel(panel_type: str) -> str:
@@ -89,9 +95,15 @@ def _preserve_route_kind_choice(session: CountingSession, data: dict) -> dict:
     return data
 
 
+def _preserve_comment(session: CountingSession, data: dict) -> dict:
+    """Коментар редагується лише окремою модалкою — джерело правди в БД."""
+    return _apply_comment(data, comment_from_data(load_data(session)))
+
+
 def _preserve_session_flags(session: CountingSession, data: dict) -> dict:
     data = _preserve_counter_choice(session, data)
-    return _preserve_route_kind_choice(session, data)
+    data = _preserve_route_kind_choice(session, data)
+    return _preserve_comment(session, data)
 
 
 def _default_kind_for_car(car) -> str:
@@ -117,12 +129,20 @@ def _apply_route_kind_choice(data: dict, car, kind: str) -> dict:
     return data
 
 
-def _apply_skip_comment(data: dict, comment: str | None) -> dict:
-    text = (comment or "").strip()
+def comment_from_data(data: dict | None) -> str | None:
+    if not data:
+        return None
+    text = (data.get(COMMENT_KEY) or data.get(_LEGACY_COMMENT_KEY) or "").strip()
+    return text or None
+
+
+def _apply_comment(data: dict, comment: str | None) -> dict:
+    data.pop(_LEGACY_COMMENT_KEY, None)
+    text = (comment or "").strip()[:COMMENT_MAX_LEN]
     if text:
-        data["skip_comment"] = text
+        data[COMMENT_KEY] = text
     else:
-        data.pop("skip_comment", None)
+        data.pop(COMMENT_KEY, None)
     return data
 
 
@@ -177,7 +197,7 @@ def start_or_get(
                 data["counter_choice"] = True
             if build_kind != FINAL_STOP_KIND:
                 data = _apply_route_kind_choice(data, car, build_kind)
-            data.pop("skip_comment", None)
+            data = _preserve_comment(existing, data)
             existing.data = _dump(data)
             existing.kind = build_kind
             existing.count_type = session_count_type
@@ -225,7 +245,8 @@ def skip_session(
     """Пропуск подсчёта: создаёт пустую сессию или меняет статус существующей.
 
     flexible=True — день обран рахувальником довільно; позначка йде в data.
-    comment — причина пропуску, зберігається в data.skip_comment.
+    comment — причина пропуску, зберігається в data.comment. Порожній comment
+    не стирає вже залишену нотатку.
     """
     session_count_type = count_type_for_panel(panel_type)
     session_kind = _build_kind_for_panel(car, panel_type, route_kind)
@@ -237,7 +258,8 @@ def skip_session(
             data["counter_choice"] = True
         if session_kind != FINAL_STOP_KIND:
             data = _apply_route_kind_choice(data, car, session_kind)
-        data = _apply_skip_comment(data, comment)
+        if (comment or "").strip():
+            data = _apply_comment(data, comment)
         existing.data = _dump(data) if data else None
         existing.kind = session_kind
         existing.count_type = session_count_type
@@ -250,7 +272,7 @@ def skip_session(
         payload["counter_choice"] = True
     if session_kind != FINAL_STOP_KIND:
         payload = _apply_route_kind_choice(payload, car, session_kind)
-    payload = _apply_skip_comment(payload, comment)
+    payload = _apply_comment(payload, comment)
     session = CountingSession(
         counter_id=counter_id,
         car_id=car_id,
@@ -267,17 +289,25 @@ def skip_session(
     return session
 
 
-def update_skip_comment(
+def update_comment(
     db: Session,
     session: CountingSession,
     comment: str | None,
 ) -> CountingSession:
-    """Оновлює причину пропуску в data.skip_comment для сесії зі status=skipped."""
-    if session.status != "skipped":
-        raise ValueError("session is not skipped")
+    """Оновлює нотатку рахувальника (data.comment) для сесії з будь-яким статусом."""
     data = load_data(session) or {}
-    data = _apply_skip_comment(data, comment)
-    session.data = _dump(data) if data else None
+    data = _apply_comment(data, comment)
+    # updated_at = собі: інакше ON UPDATE зсуне «коли відбувся» у статистиці,
+    # прострочку та вибір канонічної ready-сесії для агрегату.
+    db.execute(
+        update(CountingSession)
+        .where(CountingSession.id == session.id)
+        .values(
+            data=_dump(data) if data else None,
+            updated_at=CountingSession.updated_at,
+        )
+        .execution_options(synchronize_session=False)
+    )
     db.commit()
     db.refresh(session)
     return session
@@ -495,6 +525,7 @@ def reset_session(
     # Переносимо введені числа лише коли тип не змінився — інакше структура несумісна.
     merged = new if kind_changed else _merge_counts(old, new)
     merged = _preserve_counter_choice(session, merged)
+    merged = _preserve_comment(session, merged)
     if build_kind != FINAL_STOP_KIND:
         merged = _apply_route_kind_choice(merged, car, build_kind)
     prev = (old or {}).get("meta", {}).get("rebuild_count", 0)

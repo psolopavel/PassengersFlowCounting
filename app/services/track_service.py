@@ -21,15 +21,23 @@ from __future__ import annotations
 
 import math
 import re
+from datetime import date, time, timedelta
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.utils.geo import haversine
+from app.utils.local_tz import combine_local, unix_to_local
 
 # Имя динамической таблицы приходит из БД, но подставляется в SQL как
 # идентификатор — поэтому строго валидируем формат перед использованием.
 _TABLE_RE = re.compile(r"^[A-Za-z0-9_]+$")
+
+# Пробег «скорость × время» — те же пороги, что в servergps/revenue3.php,
+# чтобы километраж совпадал с уже существующей страницей.
+_SPEED_GPS_ERROR_KMH = 190   # точка со скоростью >= — ошибка GPS, отбрасываем
+_SPEED_MOVING_KMH = 2        # средняя скорость пары ниже — стоянка/шум
+_SPEED_MAX_GAP_SEC = 300     # пара точек дальше 5 мин — разрыв, не считаем
 
 
 def convert_coord(lat_raw: float, lon_raw: float) -> tuple[float, float] | None:
@@ -179,6 +187,62 @@ def track_distance_km(
             continue
         total_m += haversine(lats[i - 1], lons[i - 1], lats[i], lons[i])
     return round(total_m / 1000.0, 2)
+
+
+def speed_distance_km(times: list[int], speeds: list[float]) -> float:
+    """Пробег по скорости × время между соседними точками (calculateDailyKm из revenue3.php)."""
+    total = 0.0
+    for i in range(1, len(times)):
+        dt = times[i] - times[i - 1]
+        if dt <= 0 or dt > _SPEED_MAX_GAP_SEC:
+            continue
+        avg_speed = (speeds[i - 1] + speeds[i]) / 2.0
+        if avg_speed < _SPEED_MOVING_KMH:
+            continue
+        total += avg_speed * (dt / 3600.0)
+    return round(total, 1)
+
+
+def daily_speed_km(gps_db: Session, imei: str, days: list[date]) -> dict[date, float] | None:
+    """Пробег машины за каждые календарные сутки (местное время, 00:00–23:59:59).
+
+    Один запрос на весь диапазон дней, дальше раскладка по суткам.
+    None — трекер по IMEI не найден.
+    """
+    if not days:
+        return {}
+    tracker = get_tracker(gps_db, imei)
+    if tracker is None:
+        return None
+    tracker_id, table = tracker
+
+    start = int(combine_local(min(days), time(0, 0)).timestamp())
+    end = int(combine_local(max(days) + timedelta(days=1), time(0, 0)).timestamp()) - 1
+    rows = gps_db.execute(
+        text(
+            f"SELECT `speed`, `epochtime` FROM `{table}` "  # noqa: S608 — имя валидировано
+            f"WHERE `imei` = :tid AND `epochtime` BETWEEN :s AND :e "
+            f"ORDER BY `epochtime` ASC"
+        ),
+        {"tid": tracker_id, "s": start, "e": end},
+    ).all()
+
+    points: dict[date, tuple[list[int], list[float]]] = {d: ([], []) for d in days}
+    for raw_speed, raw_time in rows:
+        try:
+            speed = float(raw_speed or 0)
+            ep = int(raw_time)
+        except (TypeError, ValueError):
+            continue
+        if speed >= _SPEED_GPS_ERROR_KMH:
+            continue
+        bucket = points.get(unix_to_local(ep).date())
+        if bucket is None:
+            continue
+        bucket[0].append(ep)
+        bucket[1].append(speed)
+
+    return {d: speed_distance_km(t, s) for d, (t, s) in points.items()}
 
 
 def _interpolated_time_ranges(track: dict) -> list[tuple[int, int]]:

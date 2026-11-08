@@ -14,7 +14,7 @@ Type 1 читает только counting_daily_summary (без парсинга
 from __future__ import annotations
 
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -23,13 +23,16 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import get_db, get_gps_db
 from app.models import Car, CountingDailySummary, CountingSession
 from app.security_api import require_api_key
 from app.services import report_data_service as rds
 from app.services import report_delivery_service as delivery
 from app.services import report_xlsx_service as xlsx
 from app.services import revenue_service as rev
+from app.services import track_service
+from app.utils.debug_log import debug_exc
+from app.utils.local_tz import local_today
 
 router = APIRouter(prefix="/api/v1", dependencies=[Depends(require_api_key)])
 
@@ -95,9 +98,14 @@ def _request_range(payload: RevenueRequest) -> tuple[list[str], date, date]:
 
 
 @router.post("/revenue")
-def revenue_summary(payload: RevenueRequest, db: Session = Depends(get_db)):
+def revenue_summary(
+    payload: RevenueRequest,
+    db: Session = Depends(get_db),
+    gps_db: Session = Depends(get_gps_db),
+):
     imeis, from_day, to_day = _request_range(payload)
     days, missing_imeis = _revenue_days(db, imeis, from_day, to_day)
+    _add_uncounted_km(gps_db, days, imeis, from_day, to_day)
     return {
         "from": from_day.isoformat(),
         "to": to_day.isoformat(),
@@ -180,6 +188,58 @@ def _revenue_days(
 
     missing_imeis = [i for i in imeis if i not in ready_imeis]
     return days, missing_imeis
+
+
+def _add_uncounted_km(
+    gps_db: Session, days: list[dict], imeis: list[str], from_day: date, to_day: date
+) -> None:
+    """Км із трекера для днів без підрахунку (як dailyKm у revenue3.php).
+
+    * skipped-рядкам підставляє реальний пробіг замість 0;
+    * для днів діапазону без жодного рядка в агрегаті (по сьогодні включно)
+      додає рядки status=not_counted — лише км, решта порожня.
+    imei без трекера в gps-БД рядків не отримує. Збій gps-БД не ламає відповідь.
+    """
+    last_day = min(to_day, local_today())
+    period: list[date] = []
+    d = from_day
+    while d <= last_day:
+        period.append(d)
+        d += timedelta(days=1)
+
+    for imei in dict.fromkeys(imeis):
+        own = [item for item in days if item["imei"] == imei]
+        covered = {item["day"] for item in own}
+        skipped = [item for item in own if item["status"] == "skipped"]
+        uncounted = [day for day in period if day.isoformat() not in covered]
+        need = sorted(set(uncounted) | {date.fromisoformat(i["day"]) for i in skipped})
+        if not need:
+            continue
+        try:
+            km_by_day = track_service.daily_speed_km(gps_db, imei, need)
+        except Exception as exc:  # noqa: BLE001
+            gps_db.rollback()
+            debug_exc(f"daily_speed_km failed imei={imei}", tag="api", exc=exc)
+            continue
+        if km_by_day is None:
+            continue
+
+        for item in skipped:
+            item["distance_km"] = km_by_day.get(date.fromisoformat(item["day"]), 0.0)
+        for day in uncounted:
+            days.append({
+                "imei": imei,
+                "day": day.isoformat(),
+                "kind": None,
+                "status": "not_counted",
+                "distance_km": km_by_day.get(day, 0.0),
+                "passengers": 0.0,
+                "revenue_uah": None,
+                "warnings": [],
+                "comment": None,
+            })
+
+    days.sort(key=lambda item: (item["imei"], item["day"]))
 
 
 def _parse_trips(raw) -> list[dict]:

@@ -63,7 +63,7 @@ async function save() {
 }
 
 player.bindControls();
-$("ccSave").addEventListener("click", save);
+$("ccSave")?.addEventListener("click", save);
 
 (async () => {
     const ok = await player.loadMedia(cfg.mediaUrl);

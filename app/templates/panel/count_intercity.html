@@ -22,6 +22,7 @@
                 <span class="cc-kind">{% if is_final_stop %}Кінцеві зупинки{% else %}Міжмісто{% endif %}</span>
                 <span class="cc-name">{{ car.name or car.imei }}</span>
                 <span class="cc-day">{{ ref_day.strftime('%d.%m.%Y') }}</span>
+                {% if read_only %}<span class="cc-readonly-badge" title="Зміни не зберігаються">Режим перегляду</span>{% endif %}
             </div>
             <div class="cc-tools">
                 <label class="cc-check">
@@ -77,12 +78,12 @@
                 <label class="cc-total-label">
                     Увійшли:
                     <input type="number" id="ccEntered" min="0" step="1" value="" placeholder="—"
-                        aria-label="Кількість увійшли на поточному візиті">
+                        aria-label="Кількість увійшли на поточному візиті" {% if read_only %}disabled{% endif %}>
                 </label>
                 <label class="cc-total-label">
                     Вийшли:
                     <input type="number" id="ccExited" min="0" step="1" value="" placeholder="—"
-                        aria-label="Кількість вийшли на поточному візиті">
+                        aria-label="Кількість вийшли на поточному візиті" {% if read_only %}disabled{% endif %}>
                 </label>
             </div>
             {% else %}
@@ -91,13 +92,15 @@
                 <input type="number" id="ccTotal" min="0"
                     max="{{ car.max_people_count_in_car or 100 }}" step="1" value="" placeholder="—"
                     title="Максимум {{ car.max_people_count_in_car or 100 }}"
-                    aria-label="Кількість людей на поточному відрізку">
+                    aria-label="Кількість людей на поточному відрізку" {% if read_only %}disabled{% endif %}>
             </label>
             {% endif %}
             <div class="cc-footer-actions">
                 <button type="button" class="btn" id="ccPrev">Попередня</button>
                 <button type="button" class="btn" id="ccNext">Наступна</button>
+                {% if not read_only %}
                 <button type="button" class="btn btn-primary" id="ccSave">Зберегти</button>
+                {% endif %}
                 <span id="ccSaveState" class="muted"></span>
             </div>
         </div>

@@ -75,18 +75,9 @@
     <td class="col-action">
         <div class="action-cell">
             <div class="action-primary">
-                {% if row.action == 'recount' %}
-                <form action="/panel/count/{{ row.car.id }}/reset" method="post" class="inline reset-form"
-                    target="_blank" rel="noopener" data-car-id="{{ row.car.id }}"
-                    data-car-name="{{ row.car.name or row.car.imei }}" data-current-kind="{{ row.kind }}">
-                    <input type="hidden" name="day" value="{{ ref_day.isoformat() }}">
-                    <input type="hidden" name="type" value="{{ row.schedule_type }}">
-                    {% if selected_counter_id %}<input type="hidden" name="counter_id"
-                        value="{{ selected_counter_id }}">{% endif %}
-                    {% if row.route_kind_chose %}<input type="hidden" name="route_kind" value="{{ row.kind }}"
-                        class="route-kind-input" data-car-id="{{ row.car.id }}">{% endif %}
-                    <button type="submit" class="btn btn-count btn-recount">{{ row.button_label }}</button>
-                </form>
+                {% if row.action == 'view' %}
+                <a class="btn btn-count btn-view" href="{{ row.count_url }}&mode=view" target="_blank" rel="noopener"
+                    title="Відкрити підрахунок без можливості змін">{{ row.button_label }}</a>
                 {% elif row.use_start_form %}
                 <form action="/panel/count/{{ row.car.id }}/start" method="post" class="inline" target="_blank"
                     rel="noopener">
@@ -114,11 +105,24 @@
                     <img src="../../static/images/lock.svg" alt="" class="icon-lock"> {{ row.button_label }}
                 </span>
                 {% endif %}
-                {% if row.can_skip or row.show_rebuild or row.can_delete %}
+                {% if row.can_skip or row.show_rebuild or row.can_delete or row.can_recount %}
                 <div class="action-menu-wrap">
                     <button type="button" class="btn btn-action-more" aria-haspopup="true" aria-label="Інші дії"
                         title="Інші дії"><img src="../../static/images/arrow.svg" alt="" class="icon-dots"></button>
                     <div class="action-menu" role="menu">
+                        {% if row.can_recount %}
+                        <form action="/panel/count/{{ row.car.id }}/reset" method="post" class="inline reset-form"
+                            target="_blank" rel="noopener" data-car-id="{{ row.car.id }}"
+                            data-car-name="{{ row.car.name or row.car.imei }}" data-current-kind="{{ row.kind }}">
+                            <input type="hidden" name="day" value="{{ ref_day.isoformat() }}">
+                            <input type="hidden" name="type" value="{{ row.schedule_type }}">
+                            {% if selected_counter_id %}<input type="hidden" name="counter_id"
+                                value="{{ selected_counter_id }}">{% endif %}
+                            {% if row.route_kind_chose %}<input type="hidden" name="route_kind" value="{{ row.kind }}"
+                                class="route-kind-input" data-car-id="{{ row.car.id }}">{% endif %}
+                            <button type="submit" class="action-menu-item" role="menuitem">Перерахувати</button>
+                        </form>
+                        {% endif %}
                         {% if row.can_skip %}
                         <button type="button" class="action-menu-item skip-trigger" role="menuitem"
                             data-action="/panel/count/{{ row.car.id }}/skip"

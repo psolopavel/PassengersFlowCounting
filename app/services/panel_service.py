@@ -606,6 +606,7 @@ def _make_external_done_row(
         "button_label": "Підраховано",
         "can_skip": False,
         "can_delete": False,
+        "can_recount": False,
         "use_start_form": False,
         "show_rebuild": False,
         "flexible": False,
@@ -652,6 +653,7 @@ def _make_row(
             ls_found=ls_found,
         )
 
+    can_recount = False
     if not countable:
         action, label = None, "Ще недоступно"
         can_skip = False
@@ -669,9 +671,10 @@ def _make_row(
         can_skip = False
         use_start_form = True
     else:
-        action, label = "recount", "Перерахувати"
+        action, label = "view", "Переглянути"
         can_skip = False
         use_start_form = False
+        can_recount = True
 
     kind_fields = _row_kind_fields(car, session, schedule_type)
     kind = kind_fields["kind"]
@@ -713,6 +716,7 @@ def _make_row(
         "button_label": label,
         "can_skip": can_skip,
         "can_delete": can_delete,
+        "can_recount": can_recount,
         "use_start_form": use_start_form,
         "show_rebuild": show_rebuild,
         "flexible": False,
@@ -778,6 +782,7 @@ def _make_flexible_row(
         "button_label": label,
         "can_skip": can_skip,
         "can_delete": False,
+        "can_recount": False,
         "use_start_form": use_start_form,
         "show_rebuild": False,
         "flexible": True,

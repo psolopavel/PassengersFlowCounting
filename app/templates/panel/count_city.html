@@ -9,6 +9,7 @@
             <span class="cc-kind">Місто</span>
             <span class="cc-name">{{ car.name or car.imei }}</span>
             <span class="cc-day">{{ ref_day.strftime('%d.%m.%Y') }}</span>
+            {% if read_only %}<span class="cc-readonly-badge" title="Зміни не зберігаються">Режим перегляду</span>{% endif %}
         </div>
         <div class="cc-tools">
             <label class="cc-check">
@@ -55,10 +56,12 @@
         <label class="cc-total-label">
             Кількість підрахованих людей:
             <input type="number" id="ccTotal" min="0" step="1" value="{{ total if total is not none else '' }}"
-                placeholder="0">
+                placeholder="0" {% if read_only %}disabled{% endif %}>
         </label>
         <div class="cc-footer-actions">
+            {% if not read_only %}
             <button type="button" class="btn btn-primary" id="ccSave">Зберегти</button>
+            {% endif %}
             <span id="ccSaveState" class="muted"></span>
         </div>
     </div>

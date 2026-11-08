@@ -366,7 +366,7 @@ function goNextSegment() {
         syncInputToSegment();
         renderSidebar();
         $("ccSaveState").textContent = isFinalStop ? "Це останній візит." : "Це останній відрізок.";
-        $("ccSave").focus();
+        $("ccSave")?.focus();
     }
 }
 
@@ -525,7 +525,7 @@ function bindCountInputs() {
 }
 
 player.bindControls();
-$("ccSave").addEventListener("click", save);
+$("ccSave")?.addEventListener("click", save);
 $("ccPrev").addEventListener("click", () => goPrevSegment());
 $("ccNext").addEventListener("click", goNextSegment);
 bindCountInputs();

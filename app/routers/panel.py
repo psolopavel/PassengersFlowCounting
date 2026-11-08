@@ -160,15 +160,21 @@ def count_view(
     day: str = "",
     type: str = "whole_day",
     counter_id: int | None = None,
+    mode: str = "",
     db: Session = Depends(get_db),
     user: User = Depends(require_panel_access),
 ):
-    """Платформа підрахунку: місто / міжмісто / final_stop — повний UI."""
+    """Платформа підрахунку: місто / міжмісто / final_stop — повний UI.
+
+    mode=view — лише перегляд: поля вимкнені, без збереження й автосейву
+    (не змінює ні чисел, ні статусу, ні time_spent_sec).
+    """
     car = db.get(Car, car_id)
     ref_day = _parse_day(day) or _today_local()
     target_id = _target_counter_id(user, counter_id)
     panel_type = _parse_panel_type(type)
     count_type = count_type_for_panel(panel_type)
+    read_only = mode == "view"
 
     session = None
     data = None
@@ -193,7 +199,8 @@ def count_view(
             "window": data.get("window") or {},
             "status": session.status,
             "mediaUrl": f"/panel/count/{car.id}/media?day={ref_day.isoformat()}{qs}",
-            "autosaveUrl": f"/panel/count/{car.id}/save",
+            "autosaveUrl": None if read_only else f"/panel/count/{car.id}/save",
+            "readOnly": read_only,
         }
         if data.get("kind") == "city":
             total = (data.get("result") or {}).get("in_salon_total")
@@ -204,6 +211,7 @@ def count_view(
                 current_user=user, car=car, ref_day=ref_day, session=session,
                 total=total, counter_id=target_id,
                 panel_mode_label=panel_mode_label,
+                read_only=read_only,
                 config_json=json.dumps(config, ensure_ascii=False),
                 active_page="count",
             )
@@ -227,6 +235,7 @@ def count_view(
             counter_id=target_id,
             is_final_stop=is_final_stop,
             panel_mode_label=panel_mode_label,
+            read_only=read_only,
             config_json=json.dumps(config, ensure_ascii=False),
             active_page="count",
         )

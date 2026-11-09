@@ -12,8 +12,21 @@
                 <span>Хронологія</span>
                 <span class="cc-sidebar-progress" id="ccSegProgress"></span>
             </div>
+            {% if not read_only %}
+            <button type="button" class="cm-add-btn" id="cmAdd"
+                title="Відмітка на поточному часі відео: початок маршруту, зупинка або кінець (клавіша +)">+</button>
+            {% endif %}
         </div>
+        {% if not read_only %}
+        <div class="cm-composer" id="cmComposer" hidden></div>
+        {% endif %}
         <div class="cc-sidebar-body" id="ccSidebarBody"></div>
+        {% if not read_only %}
+        <div class="cm-hint">
+            <span><kbd>+</kbd> відмітка на поточному часі</span>
+            <span><kbd>Enter</kbd> / <kbd>Shift</kbd> наступний / попередній відрізок</span>
+        </div>
+        {% endif %}
     </aside>
 
     <div class="cc-main">
@@ -77,46 +90,13 @@
             <canvas id="ccCanvas"></canvas>
         </div>
 
-        <div class="cc-footer cm-footer">
-            {% if not read_only %}
-            <div class="cm-actions">
-                <label class="cm-field">
-                    <span>Маршрут</span>
-                    <select id="cmRoute" aria-label="Маршрут"></select>
-                </label>
-                <label class="cm-field">
-                    <span>Зупинка</span>
-                    <select id="cmStop" aria-label="Зупинка"></select>
-                </label>
-                <div class="cm-buttons">
-                    <button type="button" class="btn btn-primary" id="cmStart" title="Клавіша B">Почати маршрут</button>
-                    <button type="button" class="btn" id="cmAddStop" title="Клавіша S">Зупинка</button>
-                    <button type="button" class="btn" id="cmFinish" title="Клавіша E">Завершити маршрут</button>
-                    <button type="button" class="btn" id="cmReverse" title="Клавіша R">Зворотній маршрут</button>
-                </div>
-            </div>
-            {% endif %}
-
-            <div class="cm-selected" id="cmSelected">
-                <span class="cm-selected-info muted" id="cmSelectedInfo">Відрізок не вибрано</span>
-                <label class="cc-total-label">
-                    Кількість людей у салоні:
-                    <input type="number" id="cmCount" min="0" max="{{ car.max_people_count_in_car or 100 }}"
-                        step="1" value="" placeholder="—" title="Максимум {{ car.max_people_count_in_car or 100 }}"
-                        aria-label="Кількість людей на вибраному відрізку" disabled>
-                </label>
-                {% if not read_only %}
-                <span class="cm-mark-edit">
-                    <span class="muted">Початкова зупинка:</span>
-                    <select id="cmMarkStop" aria-label="Зупинка, з якої починається відрізок" disabled></select>
-                    <button type="button" class="btn btn-sm" id="cmSetTime" disabled
-                        title="Перенести початок відрізка на поточний час плеєра">Поточний час</button>
-                    <button type="button" class="btn btn-sm cm-btn-danger" id="cmDeleteMark" disabled
-                        title="Видалити зупинку, з якої починається відрізок">Видалити зупинку</button>
-                </span>
-                {% endif %}
-            </div>
-
+        <div class="cc-footer">
+            <label class="cc-total-label">
+                Кількість людей у салоні:
+                <input type="number" id="cmCount" min="0" max="{{ car.max_people_count_in_car or 100 }}"
+                    step="1" value="" placeholder="—" title="Максимум {{ car.max_people_count_in_car or 100 }}"
+                    aria-label="Кількість людей на вибраному відрізку" disabled>
+            </label>
             <div class="cc-footer-actions">
                 {% if not read_only %}
                 <button type="button" class="btn btn-primary" id="ccSave">Зберегти</button>

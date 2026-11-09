@@ -1683,51 +1683,127 @@ button.session-comment-trigger.has-comment::after {
     color: var(--text);
 }
 
-.cm-footer {
-    flex-direction: column;
-    align-items: stretch;
+.cc-manual .cc-sidebar {
+    width: 300px;
 }
 
-.cm-actions,
-.cm-selected,
-.cm-mark-edit {
+.cm-add-btn {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    padding: 0;
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    background: var(--panel-2);
+    color: var(--accent);
+    cursor: pointer;
+    font-size: 1.2rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.cm-add-btn:hover,
+.cm-add-btn.is-active {
+    background: var(--accent);
+    color: #fff;
+}
+
+.cc-intercity.is-sidebar-collapsed .cm-add-btn,
+.cc-intercity.is-sidebar-collapsed .cm-composer,
+.cc-intercity.is-sidebar-collapsed .cm-hint {
+    display: none;
+}
+
+.cm-composer {
     display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 6px;
+    margin: 8px 8px 0;
+    padding: 8px;
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    background: var(--panel-2);
+    flex-shrink: 0;
 }
 
-.cm-field {
-    display: inline-flex;
+.cm-composer[hidden] {
+    display: none;
+}
+
+.cm-composer-head {
+    display: flex;
     align-items: center;
     gap: 6px;
-    font-weight: 600;
 }
 
-.cm-footer select {
-    max-width: 280px;
-    padding: 7px 8px;
+.cm-composer-title {
+    flex: 1;
+    min-width: 0;
+    font-weight: 700;
+    font-size: 0.85rem;
+    line-height: 1.3;
+}
+
+.cm-composer-time {
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.82rem;
+}
+
+.cm-composer select,
+.cm-edit select {
+    width: 100%;
+    min-width: 0;
+    padding: 5px 6px;
     border-radius: 8px;
     border: 1px solid var(--border);
-    background: var(--panel-2);
+    background: var(--panel);
     color: var(--text);
-    font-size: 0.92rem;
+    font-size: 0.88rem;
 }
 
-.cm-buttons {
+.cm-composer-actions {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     flex-wrap: wrap;
 }
 
-.cm-selected-info {
-    min-width: 220px;
-    font-variant-numeric: tabular-nums;
+.cm-composer-msg {
+    color: var(--danger);
+    font-size: 0.8rem;
+    line-height: 1.3;
 }
 
-.cm-btn-danger:not(:disabled):hover {
-    border-color: var(--danger);
-    color: var(--danger);
+.cm-composer-msg:empty {
+    display: none;
+}
+
+.cm-edit {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin: -2px 0 6px;
+    padding: 0 2px;
+}
+
+.cm-hint {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 10px 8px;
+    border-top: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    flex-shrink: 0;
+}
+
+.cm-hint kbd {
+    padding: 0 4px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--panel-2);
+    font-family: inherit;
+    font-size: 0.72rem;
 }
 
 @media (max-width: 900px) {
@@ -1735,7 +1811,8 @@ button.session-comment-trigger.has-comment::after {
         flex-direction: column;
     }
 
-    .cc-sidebar {
+    .cc-sidebar,
+    .cc-manual .cc-sidebar {
         width: 100%;
         max-height: 28vh;
         position: static;

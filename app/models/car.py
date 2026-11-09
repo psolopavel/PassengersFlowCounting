@@ -27,8 +27,11 @@ class Car(Base):
     )
     # Дозволити рахувальнику рахувати сьогодні без очікування кінця розкладу.
     non_shedule_count = Column(Boolean, nullable=False, default=False, server_default="0")
-    alarms_only = Column(Boolean, nullable=False, default=False)
-    auto_gap_filling = Column(Boolean, nullable=False, default=False)
+    # Оптимізація підрахунку міжміста: none | auto_gap_filling | manual_chronology.
+    count_optimization = Column(
+        ENUM("none", "auto_gap_filling", "manual_chronology"),
+        nullable=False, default="none", server_default="none",
+    )
     route_kind = Column(SET("city", "intercity"), nullable=False, default="")
     # Рахувальник сам обирає тип маршруту (місто/міжмісто) у панелі перед підрахунком.
     route_kind_chose = Column(Boolean, nullable=False, default=False)

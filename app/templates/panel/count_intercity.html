@@ -25,6 +25,10 @@
                 {% if read_only %}<span class="cc-readonly-badge" title="Зміни не зберігаються">Режим перегляду</span>{% endif %}
             </div>
             <div class="cc-tools">
+                {% if routes_viewer_href %}
+                <a class="btn btn-sm" href="{{ routes_viewer_href }}" target="_blank" rel="noopener"
+                    title="Прив'язані маршрути і трек машини за будь-який день (лише перегляд)">Маршрути і трек</a>
+                {% endif %}
                 <label class="cc-check">
                     <input type="checkbox" id="ccShowGraph" checked>
                     <span>Показувати графік</span>

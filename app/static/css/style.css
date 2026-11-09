@@ -492,6 +492,11 @@ tr:hover td {
     color: var(--text);
 }
 
+.checks-column {
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
 .form-actions {
     display: flex;
     gap: 0.6rem;

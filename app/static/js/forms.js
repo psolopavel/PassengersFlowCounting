@@ -233,16 +233,33 @@ function initCountSourcePriority() {
     toggle();
 }
 
-function initIntercityMaxPeople() {
-    const wrap = document.getElementById("max_people_wrap");
+function initIntercityFields() {
+    const wraps = ["max_people_wrap", "count_optimization_wrap"]
+        .map((id) => document.getElementById(id))
+        .filter(Boolean);
     const radios = document.querySelectorAll('input[name="route_kind"]');
-    if (!wrap || !radios.length) return;
+    if (!wraps.length || !radios.length) return;
     const toggle = () => {
         const selected = document.querySelector('input[name="route_kind"]:checked');
-        wrap.classList.toggle("hidden", !selected || selected.value !== "intercity");
+        const intercity = !!selected && selected.value === "intercity";
+        wraps.forEach((wrap) => wrap.classList.toggle("hidden", !intercity));
     };
     radios.forEach((radio) => radio.addEventListener("change", toggle));
     toggle();
+}
+
+function initCountOptimizationHint() {
+    const hint = document.getElementById("count_optimization_hint");
+    const hintsEl = document.getElementById("count_optimization_hints");
+    const radios = document.querySelectorAll('input[name="count_optimization"]');
+    if (!hint || !hintsEl || !radios.length) return;
+    const hints = JSON.parse(hintsEl.textContent || "{}");
+    const update = () => {
+        const selected = document.querySelector('input[name="count_optimization"]:checked');
+        hint.textContent = (selected && hints[selected.value]) || "";
+    };
+    radios.forEach((radio) => radio.addEventListener("change", update));
+    update();
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -251,5 +268,6 @@ document.addEventListener("DOMContentLoaded", () => {
     initCameraLists();
     initSearchableSelects();
     initCountSourcePriority();
-    initIntercityMaxPeople();
+    initIntercityFields();
+    initCountOptimizationHint();
 });

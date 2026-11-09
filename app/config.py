@@ -65,6 +65,13 @@ class Settings(BaseSettings):
     report_max_attempts: int = 6
     report_worker_interval_sec: int = 30
 
+    # Перегляд маршрутів і треку машини в RoutesAndAdvert (лише читання) за
+    # підписаним посиланням. URL — повний шлях до auth/viewer.php; секрет має збігатися
+    # з /etc/AdvertismentManager/viewer_secret.json. Порожнє — кнопку приховано.
+    routes_viewer_url: str = ""
+    routes_viewer_secret: str = ""
+    routes_viewer_ttl_min: int = 720
+
     # Приложение
     secret_key: str = "change_me"
     app_host: str = "0.0.0.0"

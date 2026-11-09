@@ -26,6 +26,21 @@ ROUTE_KIND_LABELS = {"city": "Місто", "intercity": "Міжмісто"}
 CAMERA_ORIENTATION_LABELS = {"landscape": "Горизонтальна", "portrait": "Вертикальна"}
 DEFAULT_MAX_PEOPLE_IN_CAR = 100
 
+OPTIMIZATION_NONE = "none"
+OPTIMIZATION_GAP_FILLING = "auto_gap_filling"
+OPTIMIZATION_MANUAL_CHRONOLOGY = "manual_chronology"
+COUNT_OPTIMIZATIONS = [OPTIMIZATION_GAP_FILLING, OPTIMIZATION_MANUAL_CHRONOLOGY]
+COUNT_OPTIMIZATION_LABELS = {
+    OPTIMIZATION_GAP_FILLING: "Автоматичне заповнення пропусків треку",
+    OPTIMIZATION_MANUAL_CHRONOLOGY: "Створення хронології проїзду за прив'язаними маршрутами",
+}
+COUNT_OPTIMIZATION_HINTS = {
+    OPTIMIZATION_GAP_FILLING: "Розриви GPS-треку добудовуються за прив'язаними маршрутами "
+    "перед автоматичним визначенням ходок і відрізків.",
+    OPTIMIZATION_MANUAL_CHRONOLOGY: "Програма не визначає ходки за треком: рахувальник сам "
+    "за відео відмічає початок маршруту, зупинки, кількість людей між ними та кінець маршруту.",
+}
+
 
 class ServiceError(Exception):
     pass
@@ -91,6 +106,14 @@ def _clean_source_priority(value: str | None, count_source: str) -> str:
     if value in SOURCE_PRIORITIES:
         return value
     return "video"
+
+
+def _clean_count_optimization(value: str | None) -> str:
+    return value if value in COUNT_OPTIMIZATIONS else OPTIMIZATION_NONE
+
+
+def count_optimization(car: Car | None) -> str:
+    return _clean_count_optimization(getattr(car, "count_optimization", None))
 
 
 def _normalize_time_str(value: str) -> str:
@@ -182,8 +205,7 @@ def create_car(
     count_source: str,
     source_priority: str,
     non_shedule_count: bool,
-    alarms_only: bool,
-    auto_gap_filling: bool,
+    count_optimization: str,
     route_kind: list[str],
     route_kind_chose: bool = False,
     schedule_start: str = "06:00",
@@ -223,8 +245,7 @@ def create_car(
         count_source=effective_source,
         source_priority=_clean_source_priority(source_priority, effective_source),
         non_shedule_count=non_shedule_count,
-        alarms_only=alarms_only,
-        auto_gap_filling=auto_gap_filling,
+        count_optimization=_clean_count_optimization(count_optimization),
         route_kind=kinds,
         route_kind_chose=route_kind_chose,
         max_people_count_in_car=max_people,
@@ -255,8 +276,7 @@ def update_car(
     count_source: str,
     source_priority: str,
     non_shedule_count: bool,
-    alarms_only: bool,
-    auto_gap_filling: bool,
+    count_optimization: str,
     route_kind: list[str],
     route_kind_chose: bool = False,
     schedule_start: str = "06:00",
@@ -291,8 +311,7 @@ def update_car(
     car.count_source = effective_source
     car.source_priority = _clean_source_priority(source_priority, effective_source)
     car.non_shedule_count = non_shedule_count
-    car.alarms_only = alarms_only
-    car.auto_gap_filling = auto_gap_filling
+    car.count_optimization = _clean_count_optimization(count_optimization)
     car.route_kind = kinds
     car.route_kind_chose = route_kind_chose
     if "intercity" in kinds:

@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.models import CountingSession
 from app.services import counting_build_service
+from app.services import manual_chronology_service as manual_svc
 
 # Допуск сдвига границ отрезка (сек) для переноса count при скиданні.
 _SEG_TIME_TOL = 60
@@ -368,6 +369,26 @@ def save_intercity_fields(
     return save_progress(db, session, data=data, add_time_sec=add_time_sec)
 
 
+def save_manual_chronology(
+    db: Session,
+    session: CountingSession,
+    *,
+    chronology: list | None = None,
+    add_time_sec: int = 0,
+) -> CountingSession:
+    """Автосейв / фінальне збереження ручної хронології міжміста + time_spent.
+
+    chronology=None (лише час) — хронологія не змінюється.
+    """
+    data = load_data(session) or {}
+    if isinstance(chronology, list):
+        data = manual_svc.apply_chronology(
+            data, manual_svc.sanitize_chronology(chronology)
+        )
+    data = _preserve_session_flags(session, data)
+    return save_progress(db, session, data=data, add_time_sec=add_time_sec)
+
+
 def intercity_unfilled(data: dict | None) -> list[str]:
     """seg_key відрізків без count. Порожній список — усе заповнено."""
     segs = (data or {}).get("segments") or []
@@ -459,6 +480,13 @@ def _merge_counts(old: dict | None, new: dict) -> dict:
     if old.get("counter_choice"):
         new["counter_choice"] = True
 
+    if manual_svc.is_manual(new):
+        # Хронологію будує рахувальник — пересбор лише оновлює трек і маршрути.
+        chronology = old.get("chronology") if manual_svc.is_manual(old) else None
+        return manual_svc.apply_chronology(
+            new, manual_svc.sanitize_chronology(chronology or [])
+        )
+
     if new.get("kind") == "city":
         old_val = (old.get("result") or {}).get("in_salon_total")
         new.setdefault("result", {})["in_salon_total"] = old_val
@@ -519,8 +547,15 @@ def reset_session(
         build_kind = _resolve_kind(car, route_kind) if route_kind is not None else prev_kind
     kind_changed = build_kind != prev_kind
 
+    # Режим міжміста (авто / ручна хронологія) фіксується в сесії: скидання його
+    # не змінює, навіть якщо в машини вже інша оптимізація. Новий режим — «Перезібрати».
+    build_mode = None
+    if build_kind == "intercity" and not kind_changed and old:
+        build_mode = old.get("mode") or manual_svc.MODE_AUTO
+
     new = counting_build_service.build_data(
-        db, gps_db, routes_db, car, session.count_day, kind=build_kind
+        db, gps_db, routes_db, car, session.count_day,
+        kind=build_kind, mode=build_mode,
     )
     # Переносимо введені числа лише коли тип не змінився — інакше структура несумісна.
     merged = new if kind_changed else _merge_counts(old, new)

@@ -128,25 +128,32 @@
             <small class="hint">Ліміт для поля підрахунку на платформі міжміста.</small>
         </div>
 
+        {% set current_optimization = car.count_optimization if car and car.count_optimization else 'none' %}
+        <div class="field full{% if not is_intercity %} hidden{% endif %}" id="count_optimization_wrap">
+            <label>Оптимізація підрахунку</label>
+            <div class="checks checks-column">
+                <label class="check">
+                    <input type="radio" name="count_optimization" value="none" {% if current_optimization not in
+                        count_optimizations %}checked{% endif %}>
+                    Без оптимізації
+                </label>
+                {% for o in count_optimizations %}
+                <label class="check" title="{{ count_optimization_hints[o] }}">
+                    <input type="radio" name="count_optimization" value="{{ o }}" {% if current_optimization == o
+                        %}checked{% endif %}>
+                    {{ count_optimization_labels[o] }}
+                </label>
+                {% endfor %}
+            </div>
+            <small class="hint" id="count_optimization_hint"></small>
+            <script type="application/json" id="count_optimization_hints">{{ count_optimization_hints | tojson }}</script>
+        </div>
+
         <div class="field">
             <label class="check">
                 <input type="checkbox" name="is_active" value="true" {% if (car and car.is_active) or not car
                     %}checked{% endif %}>
                 Активна для підрахунку
-            </label>
-        </div>
-        <div class="field">
-            <label class="check">
-                <input type="checkbox" name="alarms_only" value="true" {% if car and car.alarms_only %}checked{% endif
-                    %}>
-                Рахувати лише за тривогами
-            </label>
-        </div>
-        <div class="field">
-            <label class="check">
-                <input type="checkbox" name="auto_gap_filling" value="true" {% if car and car.auto_gap_filling
-                    %}checked{% endif %}>
-                Автоматичне заповнення пропусків треку
             </label>
         </div>
         <div class="field">

@@ -97,12 +97,16 @@
                 </td>
                 <td>
                     {{ count_source_labels.get(car.count_source, car.count_source) }}
-                    {% if car.alarms_only %}<span class="pill">лише тривоги</span>{% endif %}
                 </td>
                 <td>
                     {% if car.route_kind %}
                     {% for t in car.route_kind %}<span class="pill">{{ route_kind_labels.get(t, t) }}</span> {% endfor
                     %}
+                    {% if 'intercity' in car.route_kind and car.count_optimization in count_optimization_labels %}
+                    <span class="pill" title="{{ count_optimization_labels[car.count_optimization] }}">
+                        {{ 'ручна хронологія' if car.count_optimization == 'manual_chronology' else 'автозаповнення треку' }}
+                    </span>
+                    {% endif %}
                     {% else %}<span class="muted">—</span>{% endif %}
                 </td>
                 <td>

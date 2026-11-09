@@ -1,0 +1,135 @@
+{% extends "counter_base.html" %}
+{% block title %}Міжмісто (хронологія) · {{ car.name or car.imei }}{% endblock %}
+
+{% block content %}
+<div class="cc cc-intercity cc-manual{% if read_only %} is-read-only{% endif %}" id="cc" data-status="{{ session.status }}">
+
+    <aside class="cc-sidebar" id="ccSidebar">
+        <div class="cc-sidebar-head">
+            <button type="button" class="cc-sidebar-toggle" id="ccSidebarToggle" title="Згорнути список"><img
+                    src="../../static/images/arrow.svg" alt="Згорнути список"></button>
+            <div class="cc-sidebar-title">
+                <span>Хронологія</span>
+                <span class="cc-sidebar-progress" id="ccSegProgress"></span>
+            </div>
+        </div>
+        <div class="cc-sidebar-body" id="ccSidebarBody"></div>
+    </aside>
+
+    <div class="cc-main">
+        <div class="cc-topbar">
+            <div class="cc-title">
+                <span class="cc-kind">Міжмісто · хронологія</span>
+                <span class="cc-name">{{ car.name or car.imei }}</span>
+                <span class="cc-day">{{ ref_day.strftime('%d.%m.%Y') }}</span>
+                {% if read_only %}<span class="cc-readonly-badge" title="Зміни не зберігаються">Режим перегляду</span>{% endif %}
+            </div>
+            <div class="cc-tools">
+                {% if routes_viewer_href %}
+                <a class="btn btn-sm" href="{{ routes_viewer_href }}" target="_blank" rel="noopener"
+                    title="Прив'язані маршрути і трек машини за будь-який день (лише перегляд)">Маршрути і трек</a>
+                {% endif %}
+                <label class="cc-check">
+                    <input type="checkbox" id="ccShowGraph" checked>
+                    <span>Показувати графік</span>
+                </label>
+                <div class="cc-cams" id="ccCams" title="Камери для перегляду (макс 4)">
+                    <span class="muted">Камери:</span>
+                </div>
+            </div>
+        </div>
+
+        {% if warnings %}
+        <div class="cc-notice" role="note">
+            {% for w in warnings %}{{ w }}{% if not loop.last %}<br>{% endif %}{% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="cc-stage">
+            <div class="cc-grid" id="ccGrid" data-count="0"></div>
+            <div class="cc-overlay" id="ccOverlay">Завантаження медіа…</div>
+        </div>
+
+        <div class="cc-controls">
+            <button type="button" class="btn btn-primary cc-play" id="ccPlay" title="Пробіл"><img
+                    src="../../static/images/play-video.svg" id="ccPlayIcon" alt="Програвати"></button>
+            <button type="button" class="btn" id="ccBack" title="кадр назад"><img
+                    src="../../static/images/arrow-next.svg" id="ccBackIcon" alt="кадр назад"></button>
+            <button type="button" class="btn" id="ccFwd" title="кадр вперед"><img
+                    src="../../static/images/arrow-next.svg" id="ccFwdIcon" alt="кадр вперед"></button>
+            <div class="cc-rate">
+                <button type="button" class="btn btn-sm" id="ccRateDown" title="зменшити швидкість"><img
+                        src="../../static/images/minus.svg" id="ccRateDownIcon" alt="зменшити швидкість"></button>
+                <span id="ccRate"></span>
+                <button type="button" class="btn btn-sm" id="ccRateUp" title="збільшити швидкість"><img
+                        src="../../static/images/plus.svg" id="ccRateUpIcon" alt="збільшити швидкість"></button>
+            </div>
+            <div class="cc-timeline">
+                <span class="cc-time" id="ccCur">00:00:00</span>
+                <input type="range" id="ccSeek" min="0" max="1000" value="0" step="1">
+                <span class="cc-time" id="ccDur">00:00:00</span>
+            </div>
+            <button type="button" class="btn btn-sm" id="cmWholeDay"
+                title="Показати весь робочий день (зняти вибір відрізка)">Весь день</button>
+        </div>
+
+        <div class="cc-graphs" id="ccGraphs">
+            <canvas id="ccCanvas"></canvas>
+        </div>
+
+        <div class="cc-footer cm-footer">
+            {% if not read_only %}
+            <div class="cm-actions">
+                <label class="cm-field">
+                    <span>Маршрут</span>
+                    <select id="cmRoute" aria-label="Маршрут"></select>
+                </label>
+                <label class="cm-field">
+                    <span>Зупинка</span>
+                    <select id="cmStop" aria-label="Зупинка"></select>
+                </label>
+                <div class="cm-buttons">
+                    <button type="button" class="btn btn-primary" id="cmStart" title="Клавіша B">Почати маршрут</button>
+                    <button type="button" class="btn" id="cmAddStop" title="Клавіша S">Зупинка</button>
+                    <button type="button" class="btn" id="cmFinish" title="Клавіша E">Завершити маршрут</button>
+                    <button type="button" class="btn" id="cmReverse" title="Клавіша R">Зворотній маршрут</button>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="cm-selected" id="cmSelected">
+                <span class="cm-selected-info muted" id="cmSelectedInfo">Відрізок не вибрано</span>
+                <label class="cc-total-label">
+                    Кількість людей у салоні:
+                    <input type="number" id="cmCount" min="0" max="{{ car.max_people_count_in_car or 100 }}"
+                        step="1" value="" placeholder="—" title="Максимум {{ car.max_people_count_in_car or 100 }}"
+                        aria-label="Кількість людей на вибраному відрізку" disabled>
+                </label>
+                {% if not read_only %}
+                <span class="cm-mark-edit">
+                    <span class="muted">Початкова зупинка:</span>
+                    <select id="cmMarkStop" aria-label="Зупинка, з якої починається відрізок" disabled></select>
+                    <button type="button" class="btn btn-sm" id="cmSetTime" disabled
+                        title="Перенести початок відрізка на поточний час плеєра">Поточний час</button>
+                    <button type="button" class="btn btn-sm cm-btn-danger" id="cmDeleteMark" disabled
+                        title="Видалити зупинку, з якої починається відрізок">Видалити зупинку</button>
+                </span>
+                {% endif %}
+            </div>
+
+            <div class="cc-footer-actions">
+                {% if not read_only %}
+                <button type="button" class="btn btn-primary" id="ccSave">Зберегти</button>
+                {% endif %}
+                <span id="ccSaveState" class="muted"></span>
+            </div>
+        </div>
+    </div>
+
+    <script id="ccConfig" type="application/json">{{ config_json | safe }}</script>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="/static/js/count_intercity_manual.js"></script>
+{% endblock %}

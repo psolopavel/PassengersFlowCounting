@@ -1622,6 +1622,114 @@ button.session-comment-trigger.has-comment::after {
     font-variant-numeric: tabular-nums;
 }
 
+/* ============ Міжмісто: ручна хронологія ============ */
+.cc-manual .cc-seg.is-open {
+    border-style: dashed;
+}
+
+.cc-manual .cc-trip.is-open .cc-trip-meta {
+    color: var(--accent);
+}
+
+.cm-trip-tools {
+    display: inline-flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.cm-icon-btn {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel-2);
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 0.75rem;
+    line-height: 1;
+}
+
+.cm-icon-btn:hover {
+    border-color: var(--accent);
+    color: var(--text);
+}
+
+.cm-icon-danger:hover {
+    border-color: var(--danger);
+    color: var(--danger);
+}
+
+.cm-trip-end {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    padding: 4px 10px;
+    margin-bottom: 6px;
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.8rem;
+    text-align: left;
+}
+
+.cm-trip-end:hover,
+.cm-trip-end.is-active {
+    border-color: var(--accent);
+    color: var(--text);
+}
+
+.cm-footer {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.cm-actions,
+.cm-selected,
+.cm-mark-edit {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.cm-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+}
+
+.cm-footer select {
+    max-width: 280px;
+    padding: 7px 8px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    color: var(--text);
+    font-size: 0.92rem;
+}
+
+.cm-buttons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.cm-selected-info {
+    min-width: 220px;
+    font-variant-numeric: tabular-nums;
+}
+
+.cm-btn-danger:not(:disabled):hover {
+    border-color: var(--danger);
+    color: var(--danger);
+}
+
 @media (max-width: 900px) {
     .cc-intercity {
         flex-direction: column;

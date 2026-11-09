@@ -1,7 +1,8 @@
 {% extends "counter_base.html" %}
 {% block title %}Машини на підрахунок{% endblock %}
 
-{% set cparam = (type_qs ~ ('&counter_id=' ~ selected_counter_id if (is_manager_view and selected_counter_id) else '')) %}
+{% set cparam = (type_qs ~ ('&counter_id=' ~ selected_counter_id if (is_manager_view and selected_counter_id) else ''))
+%}
 
 {% macro car_row(row, ref_day, selected_counter_id) %}
 <tr data-ready="{{ '1' if row.status in ('ready', 'skipped') else '0' }}"
@@ -56,15 +57,11 @@
         {% elif row.status and not row.counted_by_other %}
         <button type="button"
             class="pill pill-status pill-status-{{ row.status }} session-comment-trigger{% if row.session_comment %} has-comment{% endif %}"
-            data-car-id="{{ row.car.id }}"
-            data-day="{{ ref_day.isoformat() }}"
-            data-day-display="{{ ref_day.strftime('%d.%m.%Y') }}"
-            data-car-name="{{ row.car.name or row.car.imei }}"
-            data-status="{{ row.status }}"
-            data-status-label="{{ row.status_label }}"
-            data-schedule-type="{{ row.schedule_type }}"
-            data-session-comment="{{ row.session_comment or '' }}"
-            {% if selected_counter_id %}data-counter-id="{{ selected_counter_id }}"{% endif %}
+            data-car-id="{{ row.car.id }}" data-day="{{ ref_day.isoformat() }}"
+            data-day-display="{{ ref_day.strftime('%d.%m.%Y') }}" data-car-name="{{ row.car.name or row.car.imei }}"
+            data-status="{{ row.status }}" data-status-label="{{ row.status_label }}"
+            data-schedule-type="{{ row.schedule_type }}" data-session-comment="{{ row.session_comment or '' }}" {% if
+            selected_counter_id %}data-counter-id="{{ selected_counter_id }}" {% endif %}
             title="{% if row.session_comment %}{{ row.session_comment }}{% else %}Додати коментар{% endif %}">
             {{ row.status_label }}
         </button>
@@ -125,14 +122,13 @@
                         {% endif %}
                         {% if row.can_skip %}
                         <button type="button" class="action-menu-item skip-trigger" role="menuitem"
-                            data-action="/panel/count/{{ row.car.id }}/skip"
-                            data-day="{{ ref_day.isoformat() }}"
+                            data-action="/panel/count/{{ row.car.id }}/skip" data-day="{{ ref_day.isoformat() }}"
                             data-day-display="{{ ref_day.strftime('%d.%m.%Y') }}"
                             data-car-name="{{ row.car.name or row.car.imei }}"
-                            data-schedule-type="{{ row.schedule_type }}"
-                            {% if selected_counter_id %}data-counter-id="{{ selected_counter_id }}"{% endif %}
-                            {% if row.route_kind_chose %}data-route-kind="{{ row.kind }}"
-                            data-car-id="{{ row.car.id }}"{% endif %}>Пропустити</button>
+                            data-schedule-type="{{ row.schedule_type }}" {% if selected_counter_id
+                            %}data-counter-id="{{ selected_counter_id }}" {% endif %} {% if row.route_kind_chose
+                            %}data-route-kind="{{ row.kind }}" data-car-id="{{ row.car.id }}" {% endif
+                            %}>Пропустити</button>
                         {% endif %}
                         {% if row.can_delete %}
                         <form action="/panel/count/{{ row.car.id }}/delete" method="post" class="inline"
@@ -163,10 +159,8 @@
                 </div>
                 {% endif %}
             </div>
-            <button type="button"
-                class="comment-btn{% if not row.comment %} comment-btn-empty{% endif %}"
-                data-car-id="{{ row.car.id }}"
-                data-comment="{{ row.comment or '' }}"
+            <button type="button" class="comment-btn{% if not row.comment %} comment-btn-empty{% endif %}"
+                data-car-id="{{ row.car.id }}" data-comment="{{ row.comment or '' }}"
                 data-car="{{ row.car.name or row.car.imei }}"
                 title="{% if row.comment %}Коментар про машину{% else %}Додати коментар{% endif %}"><img
                     src="../../static/images/message.svg" alt="" class="icon-comment"></button>
@@ -340,8 +334,7 @@
         </div>
         <div class="modal-body">
             <label for="carCommentInput" class="modal-label">Коментар про машину</label>
-            <textarea id="carCommentInput" class="modal-textarea" rows="4"
-                placeholder="Додайте коментар…"></textarea>
+            <textarea id="carCommentInput" class="modal-textarea" rows="4" placeholder="Додайте коментар…"></textarea>
             <p class="modal-hint modal-save-status hidden" id="carCommentStatus"></p>
         </div>
         <div class="modal-footer">

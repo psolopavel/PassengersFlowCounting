@@ -6,6 +6,8 @@
 
 Город    — окно дня + result (одно число).
 Межгород — трек-мета + периоды маршрутов + отрезки между остановками.
+           mode=auto — отрезки по треку; mode=manual_chronology — хронологию
+           строит рахувальник (см. manual_chronology_service).
 """
 
 from __future__ import annotations
@@ -14,9 +16,11 @@ from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
+from app.services import car_service
 from app.services.car_service import camera_ids, parse_schedule_to_local
 from app.services import final_stop_service, media_service, route_match_service, track_service
 from app.services import gap_fill_service
+from app.services import manual_chronology_service as manual_svc
 from app.utils.debug_log import debug_log
 from app.utils.local_tz import combine_local, parse_hhmm, unix_to_local
 
@@ -197,6 +201,9 @@ def _build_intercity(
     if not routes:
         warnings.append("Немає прив'язаних маршрутів (all_car_routes)")
 
+    auto_gap_filling = (
+        car_service.count_optimization(car) == car_service.OPTIMIZATION_GAP_FILLING
+    )
     raw_points = len(track.get("lat", []))
     debug_log(
         "build_intercity: input",
@@ -209,13 +216,13 @@ def _build_intercity(
             "source_table": source_table,
             "track_points_raw": raw_points,
             "routes": len(routes),
-            "auto_gap_filling": bool(car.auto_gap_filling),
+            "auto_gap_filling": auto_gap_filling,
         },
     )
 
     gap_filled = False
     gap_diag: list[dict] = []
-    if car.auto_gap_filling and routes and len(track.get("lat", [])) >= 2:
+    if auto_gap_filling and routes and len(track.get("lat", [])) >= 2:
         track, gap_diag = gap_fill_service.fill_track(track, routes)
         gap_filled = True
     debug_log(
@@ -270,6 +277,7 @@ def _build_intercity(
 
     return {
         "kind": "intercity",
+        "mode": manual_svc.MODE_AUTO,
         "source_used": car.count_source,
         "window": {"start_utc": start_unix, "end_utc": end_unix},
         "distance_km": distance_km,
@@ -285,6 +293,44 @@ def _build_intercity(
         "warnings": warnings,
         "generated_at": int(datetime.now(timezone.utc).timestamp()),
     }
+
+
+def _build_intercity_manual(
+    car, day: date, gps_db: Session, routes_db: Session
+) -> dict:
+    """Межгород с ручной хронологией: трек только для пробега и графика скорости."""
+    warnings: list[str] = []
+    start_unix, end_unix = _window_unix(car, day)
+
+    track, source_table = track_service.get_day_track(
+        gps_db, car.imei, start_unix, end_unix
+    )
+    if source_table is None:
+        warnings.append(f"IMEI {car.imei} не знайдено в gps.trackers")
+
+    catalog = manual_svc.load_route_catalog(routes_db, car.imei)
+    if not catalog:
+        warnings.append("Немає прив'язаних маршрутів (all_car_routes)")
+
+    distance_km = track_service.track_distance_km(track)
+    data = {
+        "kind": "intercity",
+        "mode": manual_svc.MODE_MANUAL,
+        "source_used": car.count_source,
+        "window": {"start_utc": start_unix, "end_utc": end_unix},
+        "distance_km": distance_km,
+        "track": {
+            "points": len(track.get("lat", [])),
+            "distance_km": distance_km,
+            "source": f"gps.{source_table}" if source_table else None,
+            "cum_km": manual_svc.cumulative_km_series(track),
+        },
+        "routes_catalog": catalog,
+        "meta": {"rebuild_count": 0},
+        "warnings": warnings,
+        "generated_at": int(datetime.now(timezone.utc).timestamp()),
+    }
+    return manual_svc.apply_chronology(data, [])
 
 
 def _build_final_stop(
@@ -345,12 +391,24 @@ def build_data(
     day: date,
     *,
     kind: str | None = None,
+    mode: str | None = None,
 ) -> dict:
-    """Собирает data для сессии подсчёта в зависимости от типа маршрута машины."""
+    """Собирает data для сессии подсчёта в зависимости от типа маршрута машины.
+
+    mode (межгород) — auto / manual_chronology; None — по настройке машины.
+    """
     if kind == "final_stop":
         return _build_final_stop(car, day, gps_db, routes_db)
     if kind not in ("city", "intercity"):
         kind = "intercity" if "intercity" in (car.route_kind or "") else "city"
     if kind == "intercity":
+        if mode is None:
+            manual = (
+                car_service.count_optimization(car)
+                == car_service.OPTIMIZATION_MANUAL_CHRONOLOGY
+            )
+            mode = manual_svc.MODE_MANUAL if manual else manual_svc.MODE_AUTO
+        if mode == manual_svc.MODE_MANUAL:
+            return _build_intercity_manual(car, day, gps_db, routes_db)
         return _build_intercity(car, day, gps_db, routes_db)
     return _build_city(car, day, gps_db)

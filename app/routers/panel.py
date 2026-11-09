@@ -18,7 +18,9 @@ from app.security import require_panel_access
 from app.services import car_service as car_svc
 from app.services import counting_build_service
 from app.services import counting_session_service as css
+from app.services import manual_chronology_service as manual_svc
 from app.services import panel_service as svc
+from app.services import routes_viewer_service
 from app.services import summary_service
 from app.services.counting_session_service import count_type_for_panel
 from app.services.schedule_service import normalize_type
@@ -187,6 +189,10 @@ def count_view(
     ):
         qs = _count_qs(user, counter_id, target_id, panel_type)
         panel_mode_label = svc.PANEL_TYPE_LABELS.get(panel_type, "")
+        routes_viewer_href = (
+            f"/panel/count/{car.id}/routes-viewer?day={ref_day.isoformat()}{qs}"
+            if routes_viewer_service.is_enabled() else None
+        )
         config = {
             "carId": car.id,
             "imei": car.imei,
@@ -216,6 +222,25 @@ def count_view(
                 active_page="count",
             )
 
+        if data.get("kind") == "intercity" and manual_svc.is_manual(data):
+            config["kind"] = "intercity"
+            config["mode"] = manual_svc.MODE_MANUAL
+            config["maxPeopleCountInCar"] = car_svc.max_people_for_car(car)
+            config["saveUrl"] = f"/panel/count/{car.id}/intercity-save"
+            config["routesCatalog"] = data.get("routes_catalog") or []
+            config["chronology"] = data.get("chronology") or []
+            return render(
+                request, "panel/count_intercity_manual.html",
+                current_user=user, car=car, ref_day=ref_day, session=session,
+                counter_id=target_id,
+                panel_mode_label=panel_mode_label,
+                read_only=read_only,
+                routes_viewer_href=routes_viewer_href,
+                warnings=data.get("warnings") or [],
+                config_json=json.dumps(config, ensure_ascii=False),
+                active_page="count",
+            )
+
         config["segments"] = data.get("segments") or []
         if data.get("kind") == "final_stop":
             config["kind"] = "final_stop"
@@ -236,6 +261,7 @@ def count_view(
             is_final_stop=is_final_stop,
             panel_mode_label=panel_mode_label,
             read_only=read_only,
+            routes_viewer_href=routes_viewer_href,
             config_json=json.dumps(config, ensure_ascii=False),
             active_page="count",
         )
@@ -271,6 +297,33 @@ async def car_comment_save(
     comment = (body.get("comment") or "").strip()
     car = car_svc.update_car_comment(db, car, comment or None)
     return JSONResponse({"ok": True, "comment": car.comment or ""})
+
+
+@router.get("/count/{car_id}/routes-viewer")
+def count_routes_viewer(
+    car_id: int,
+    request: Request,
+    day: str = "",
+    type: str = "whole_day",
+    db: Session = Depends(get_db),
+    user: User = Depends(require_panel_access),
+):
+    """Перехід у RoutesAndAdvert: маршрути і трек машини лише для перегляду.
+
+    Посилання підписується в момент кліку, тож строк дії рахується від відкриття.
+    """
+    car = db.get(Car, car_id)
+    if car is None or not routes_viewer_service.is_enabled():
+        return JSONResponse({"error": "not_available"}, status_code=404)
+    if not user.is_manager and not svc.counter_has_car(
+        db, int(user.id), car_id, schedule_type=_parse_panel_type(type)
+    ):
+        return JSONResponse({"error": "access_denied"}, status_code=403)
+    ref_day = _parse_day(day)
+    return RedirectResponse(
+        routes_viewer_service.viewer_url(car.imei, int(user.id), ref_day),
+        status_code=HTTP_303_SEE_OTHER,
+    )
 
 
 @router.get("/count/{car_id}/media")
@@ -341,6 +394,23 @@ async def count_intercity_save(
 
     car = db.get(Car, car_id)
     max_people = car_svc.max_people_for_car(car)
+
+    if manual_svc.is_manual(css.load_data(session)):
+        css.save_manual_chronology(
+            db, session,
+            chronology=body.get("chronology"),
+            add_time_sec=int(body.get("add_time_sec") or 0),
+        )
+        errors = manual_svc.validate_for_ready(css.load_data(session), max_people)
+        if errors:
+            return JSONResponse(
+                {"ok": False, "error": "invalid_chronology", "errors": errors},
+                status_code=400,
+            )
+        css.set_status(db, session, "ready")
+        summary_service.safe_materialize_day(db, car_id, ref_day, count_type=count_type)
+        return JSONResponse({"ok": True})
+
     counts = body.get("counts") or {}
     if css.intercity_counts_exceed_max(counts, max_people):
         return JSONResponse(
@@ -748,6 +818,22 @@ async def count_save(
         css.save_city_fields(
             db, session,
             total=body.get("total"),
+            add_time_sec=int(body.get("add_time_sec") or 0),
+        )
+    elif kind == "intercity" and manual_svc.is_manual(data):
+        car = db.get(Car, car_id)
+        max_people = car_svc.max_people_for_car(car)
+        chronology = body.get("chronology")
+        if isinstance(chronology, list) and manual_svc.chronology_exceeds_max(
+            chronology, max_people
+        ):
+            return JSONResponse(
+                {"ok": False, "error": "count_too_high", "max": max_people},
+                status_code=400,
+            )
+        css.save_manual_chronology(
+            db, session,
+            chronology=chronology,
             add_time_sec=int(body.get("add_time_sec") or 0),
         )
     elif kind == "intercity":

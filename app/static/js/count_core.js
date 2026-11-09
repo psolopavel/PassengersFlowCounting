@@ -161,6 +161,8 @@ export class MultiCamPlayer {
      * @param {Array} opts.cameras
      * @param {string} [opts.autosaveUrl]
      * @param {(pendingSec: number) => object} [opts.buildPayload]
+     * @param {(ctx: CanvasRenderingContext2D, player: MultiCamPlayer) => void} [opts.drawOverlay]
+     *        малює поверх графіка (у CSS-пікселях) перед лінією поточного часу
      * @param {string} [opts.crossOrigin]
      */
     constructor(opts) {
@@ -761,6 +763,11 @@ export class MultiCamPlayer {
         this.ctx.drawImage(this.staticLayer, 0, 0);
         this.ctx.save();
         this.ctx.scale(this.dpr, this.dpr);
+        if (typeof this.opts.drawOverlay === "function") {
+            this.ctx.save();
+            this.opts.drawOverlay(this.ctx, this);
+            this.ctx.restore();
+        }
         const x = this.xOf(this.winStart + this.master);
         this.ctx.strokeStyle = "#ef4444"; this.ctx.lineWidth = 2;
         this.ctx.beginPath(); this.ctx.moveTo(x, 0); this.ctx.lineTo(x, this.cssH); this.ctx.stroke();

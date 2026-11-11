@@ -298,7 +298,8 @@ def _build_intercity(
 def _build_intercity_manual(
     car, day: date, gps_db: Session, routes_db: Session
 ) -> dict:
-    """Межгород с ручной хронологией: трек только для пробега и графика скорости."""
+    """Межгород с ручной хронологией: трек — лишь общий пробег дня; остановки и км
+    отрезков считаются по линии маршрута (manual_chronology_service)."""
     warnings: list[str] = []
     start_unix, end_unix = _window_unix(car, day)
 
@@ -311,6 +312,14 @@ def _build_intercity_manual(
     catalog = manual_svc.load_route_catalog(routes_db, car.imei)
     if not catalog:
         warnings.append("Немає прив'язаних маршрутів (all_car_routes)")
+    for route in catalog:
+        if len(route["stops"]) < 2:
+            warnings.append(f"Маршрут «{route['name']}»: менше двох зупинок — ходку по ньому не завершити")
+        elif route["length_km"] is None:
+            warnings.append(
+                f"Маршрут «{route['name']}» без лінії на карті — зупинки розподіляються "
+                "рівномірно за порядком, кілометри не рахуються"
+            )
 
     distance_km = track_service.track_distance_km(track)
     data = {
@@ -323,7 +332,6 @@ def _build_intercity_manual(
             "points": len(track.get("lat", [])),
             "distance_km": distance_km,
             "source": f"gps.{source_table}" if source_table else None,
-            "cum_km": manual_svc.cumulative_km_series(track),
         },
         "routes_catalog": catalog,
         "meta": {"rebuild_count": 0},

@@ -1768,6 +1768,22 @@ button.session-comment-trigger.has-comment::after {
     flex-wrap: wrap;
 }
 
+.cm-composer-field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+}
+
+.cm-composer-hint,
+.cm-edit-note {
+    flex: 1;
+    color: var(--text-dim);
+    font-size: 0.78rem;
+    line-height: 1.3;
+}
+
 .cm-composer-msg {
     color: var(--danger);
     font-size: 0.8rem;

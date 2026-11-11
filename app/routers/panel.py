@@ -228,7 +228,7 @@ def count_view(
             config["maxPeopleCountInCar"] = car_svc.max_people_for_car(car)
             config["saveUrl"] = f"/panel/count/{car.id}/intercity-save"
             config["routesCatalog"] = data.get("routes_catalog") or []
-            config["chronology"] = data.get("chronology") or []
+            config["chronology"] = manual_svc.sanitize_chronology(data.get("chronology") or [])
             return render(
                 request, "panel/count_intercity_manual.html",
                 current_user=user, car=car, ref_day=ref_day, session=session,

@@ -1,18 +1,26 @@
 """Ручна хронологія міжміста (cars.count_optimization = manual_chronology).
 
-Програма не визначає ходки за треком. Рахувальник за відео будує хронологію:
-ходка = маршрут + впорядковані відмітки зупинок (час із плеєра) + кількість
-людей у салоні після кожної зупинки, крім останньої.
+Програма не визначає ходки за треком. Рахувальник за відео відмічає початок
+ходки (час + початкова зупинка), кінець (час + кінцева зупинка) і будь-яку
+кількість зупинок між ними — лише час та кількість людей у салоні після неї.
+
+Реальні зупинки проміжних відміток програма обчислює сама: частка часу ходки
+переводиться в позицію на маршруті між початковою і кінцевою зупинкою (за
+довжиною лінії маршруту, без треку), відмітка прив'язується до найближчої
+зупинки, не повертаючись назад.
 
 У data сесії зберігаються:
     mode            — "manual_chronology";
-    routes_catalog  — знімок прив'язаних маршрутів із зупинками (для вибору та перевірок);
-    chronology      — [{uid, route_id, route_name, closed, marks: [{uid, stop_id,
-                        stop_name, utc, count_after}]}];
-    track.cum_km    — прорежений ряд накопиченого пробігу [[utc, km], ...];
-    segments, route_periods — виводяться з chronology у тому ж форматі, що й
-                        в автоматичному режимі, тому FIFO, зведення, звіти та API
-                        працюють без змін.
+    routes_catalog  — знімок прив'язаних маршрутів: [{id, name, inverse_route_id,
+                        length_km, stops: [{id, name, order, km}]}], зупинки за km;
+    chronology      — ввід рахувальника: [{uid, route_id, route_name, closed,
+                        start_stop_id, end_stop_id, marks: [{uid, utc, count_after}]}];
+    segments, route_periods — виводяться з chronology (лише завершені ходки) у
+                        тому ж форматі, що й в автоматичному режимі, тому FIFO,
+                        зведення, звіти та API працюють без змін.
+
+Розрахунок дублюється в static/js/count_intercity_manual.js (resolveTrip) —
+правила мають збігатися.
 """
 
 from __future__ import annotations
@@ -21,20 +29,18 @@ import json
 import math
 import re
 import secrets
-from bisect import bisect_left
 
 from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
-from app.services.route_match_service import _car_route_ids
-from app.utils.geo import haversine
+from app.services.route_match_service import _car_route_ids, _load_routes_geo, _load_stops
+from app.utils.local_tz import unix_to_local
 
 MODE_AUTO = "auto"
 MODE_MANUAL = "manual_chronology"
 
 MAX_TRIPS = 300
 MAX_MARKS_PER_TRIP = 300
-CUM_KM_MAX_POINTS = 1500
 
 _UID_RE = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
 
@@ -57,7 +63,11 @@ def _inverse_route_id(raw) -> int | None:
 
 
 def load_route_catalog(routes_db: Session, imei: str) -> list[dict]:
-    """Прив'язані до машини активні маршрути із зупинками в порядку order_index."""
+    """Прив'язані до машини активні маршрути із зупинками в порядку проходження.
+
+    km зупинки — позиція її проекції на лінію маршруту. Маршрут без геометрії
+    отримує зупинки за order_index і km = None (тоді позицією слугує номер).
+    """
     ids = _car_route_ids(routes_db, imei)
     if not ids:
         return []
@@ -74,24 +84,42 @@ def load_route_catalog(routes_db: Session, imei: str) -> list[dict]:
         ).bindparams(bindparam("ids", expanding=True)),
         {"ids": ids},
     ).all()
+    geo = _load_routes_geo(routes_db, ids)
 
-    stops_by_route: dict[int, list[dict]] = {}
+    plain_stops: dict[int, list[dict]] = {}
     for s in stop_rows:
-        stops_by_route.setdefault(int(s.route_id), []).append({
+        plain_stops.setdefault(int(s.route_id), []).append({
             "id": int(s.id),
             "name": s.name or f"Зупинка #{s.id}",
             "order": int(s.order_index) if s.order_index is not None else 0,
+            "km": None,
         })
 
-    by_id = {
-        int(r.id): {
-            "id": int(r.id),
-            "name": r.name or f"Маршрут #{r.id}",
+    by_id: dict[int, dict] = {}
+    for r in route_rows:
+        rid = int(r.id)
+        route = {
+            "id": rid,
+            "name": r.name or f"Маршрут #{rid}",
             "inverse_route_id": _inverse_route_id(r.additional),
-            "stops": stops_by_route.get(int(r.id), []),
+            "length_km": None,
+            "stops": plain_stops.get(rid, []),
         }
-        for r in route_rows
-    }
+        g = geo.get(rid)
+        if g is not None:
+            _load_stops(routes_db, g)
+            if len(g["stops"]) >= 2:
+                route["length_km"] = round(g["total_len"] / 1000.0, 3)
+                route["stops"] = [
+                    {
+                        "id": s["id"],
+                        "name": s["name"],
+                        "order": s["order"],
+                        "km": round(s["along"] / 1000.0, 3),
+                    }
+                    for s in g["stops"]
+                ]
+        by_id[rid] = route
     catalog = [by_id[rid] for rid in ids if rid in by_id]
 
     for route in catalog:
@@ -105,39 +133,16 @@ def load_route_catalog(routes_db: Session, imei: str) -> list[dict]:
     return catalog
 
 
-# ── пробіг ───────────────────────────────────────────────────────────
-
-def cumulative_km_series(track: dict) -> list[list]:
-    """[[utc, km_від_початку_дня], ...], прорежений до CUM_KM_MAX_POINTS точок."""
-    lats = track.get("lat", [])
-    lons = track.get("lon", [])
-    times = track.get("time", [])
-    n = len(lats)
-    if n < 2 or len(lons) != n or len(times) != n:
+def route_stop_positions(route: dict | None) -> list[dict]:
+    """Зупинки маршруту з позицією pos (км; без геометрії — номер), за pos."""
+    stops = list((route or {}).get("stops") or [])
+    if not stops:
         return []
-    step = max(1, math.ceil(n / CUM_KM_MAX_POINTS))
-    total_m = 0.0
-    series = [[int(times[0]), 0.0]]
-    for i in range(1, n):
-        total_m += haversine(lats[i - 1], lons[i - 1], lats[i], lons[i])
-        if i % step == 0 or i == n - 1:
-            series.append([int(times[i]), round(total_m / 1000.0, 3)])
-    return series
-
-
-def _km_at(series: list[list], times: list[int], utc: int) -> float:
-    if not series:
-        return 0.0
-    i = bisect_left(times, utc)
-    if i <= 0:
-        return float(series[0][1])
-    if i >= len(series):
-        return float(series[-1][1])
-    t0, k0 = series[i - 1]
-    t1, k1 = series[i]
-    if t1 <= t0:
-        return float(k1)
-    return float(k0) + (float(k1) - float(k0)) * (utc - t0) / (t1 - t0)
+    if any(s.get("km") is None for s in stops):
+        return [{**s, "pos": float(i)} for i, s in enumerate(stops)]
+    out = [{**s, "pos": float(s["km"])} for s in stops]
+    out.sort(key=lambda s: (s["pos"], s.get("order", 0), s["id"]))
+    return out
 
 
 # ── очищення вхідних даних ───────────────────────────────────────────
@@ -172,7 +177,11 @@ def _uid(raw, seen: set[str]) -> str:
 
 
 def sanitize_chronology(raw) -> list[dict]:
-    """Приводить хронологію з браузера до канонічного вигляду; биті записи відкидає."""
+    """Приводить хронологію з браузера до канонічного вигляду; биті записи відкидає.
+
+    Старий формат (stop_id у кожної відмітки) читається так: початкова зупинка —
+    з першої відмітки, кінцева — з останньої завершеної ходки, решта обчислюється.
+    """
     if not isinstance(raw, list):
         return []
     seen: set[str] = set()
@@ -183,26 +192,33 @@ def sanitize_chronology(raw) -> list[dict]:
         route_id = _int(t.get("route_id"))
         if route_id is None:
             continue
+        raw_marks = [m for m in (t.get("marks") or [])[:MAX_MARKS_PER_TRIP] if isinstance(m, dict)]
         marks: list[dict] = []
-        for m in (t.get("marks") or [])[:MAX_MARKS_PER_TRIP]:
-            if not isinstance(m, dict):
-                continue
-            stop_id = _int(m.get("stop_id"))
+        legacy_stops: list[int | None] = []
+        for m in raw_marks:
             utc = _int(m.get("utc"))
-            if stop_id is None or utc is None:
+            if utc is None:
                 continue
             marks.append({
                 "uid": _uid(m.get("uid"), seen),
-                "stop_id": stop_id,
-                "stop_name": str(m.get("stop_name") or "")[:255],
                 "utc": utc,
                 "count_after": parse_count(m.get("count_after")),
             })
+            legacy_stops.append(_int(m.get("stop_id")))
+        closed = bool(t.get("closed"))
+        start_stop_id = _int(t.get("start_stop_id"))
+        if start_stop_id is None and legacy_stops:
+            start_stop_id = legacy_stops[0]
+        end_stop_id = _int(t.get("end_stop_id")) if closed else None
+        if closed and end_stop_id is None and len(legacy_stops) >= 2:
+            end_stop_id = legacy_stops[-1]
         trips.append({
             "uid": _uid(t.get("uid"), seen),
             "route_id": route_id,
             "route_name": str(t.get("route_name") or "")[:255],
-            "closed": bool(t.get("closed")),
+            "closed": closed,
+            "start_stop_id": start_stop_id,
+            "end_stop_id": end_stop_id,
             "marks": marks,
         })
     return trips
@@ -217,50 +233,83 @@ def chronology_exceeds_max(chronology, max_people: int) -> bool:
     return False
 
 
-# ── chronology -> segments ───────────────────────────────────────────
+# ── розподіл відміток по зупинках ────────────────────────────────────
+
+def resolve_trip(trip: dict, route: dict | None) -> list[dict] | None:
+    """Зупинка кожної відмітки завершеної ходки: [{stop, pos, estimated}] або None.
+
+    Перша і остання відмітки — вказані рахувальником початкова і кінцева зупинки.
+    Проміжна: pos = pos_початку + частка_часу × (pos_кінця − pos_початку), далі
+    найближча зупинка між початковою і кінцевою, не раніше попередньої відмітки
+    (на рівній відстані — раніша).
+    """
+    marks = trip.get("marks") or []
+    if not trip.get("closed") or len(marks) < 2:
+        return None
+    stops = route_stop_positions(route)
+    idx_a = next((i for i, s in enumerate(stops) if s["id"] == trip.get("start_stop_id")), None)
+    idx_b = next((i for i, s in enumerate(stops) if s["id"] == trip.get("end_stop_id")), None)
+    if idx_a is None or idx_b is None or stops[idx_b]["pos"] <= stops[idx_a]["pos"]:
+        return None
+    pos_a = stops[idx_a]["pos"]
+    pos_b = stops[idx_b]["pos"]
+    t0 = marks[0]["utc"]
+    t1 = marks[-1]["utc"]
+    if t1 <= t0:
+        return None
+
+    out = [{"stop": stops[idx_a], "pos": pos_a, "estimated": False}]
+    lo = idx_a
+    for mark in marks[1:-1]:
+        frac = min(1.0, max(0.0, (mark["utc"] - t0) / (t1 - t0)))
+        pos = pos_a + frac * (pos_b - pos_a)
+        best = lo
+        for j in range(lo + 1, idx_b + 1):
+            if abs(stops[j]["pos"] - pos) < abs(stops[best]["pos"] - pos):
+                best = j
+        lo = best
+        out.append({"stop": stops[best], "pos": pos, "estimated": True})
+    out.append({"stop": stops[idx_b], "pos": pos_b, "estimated": False})
+    return out
+
 
 def _trip_start(trip: dict) -> int:
     marks = trip.get("marks") or []
     return marks[0]["utc"] if marks else 2**62
 
 
-def _catalog_maps(data: dict) -> tuple[dict, dict]:
-    routes = {r["id"]: r for r in data.get("routes_catalog") or []}
-    stops = {
-        rid: {s["id"]: s for s in r.get("stops") or []}
-        for rid, r in routes.items()
-    }
-    return routes, stops
+def _routes_by_id(data: dict) -> dict[int, dict]:
+    return {r["id"]: r for r in data.get("routes_catalog") or []}
+
+
+def _distance_scale(route: dict | None) -> float:
+    """Множник pos → км: 1 для маршрутів із геометрією, 0 — без неї (км невідомі)."""
+    stops = (route or {}).get("stops") or []
+    return 0.0 if not stops or any(s.get("km") is None for s in stops) else 1.0
 
 
 def apply_chronology(data: dict, chronology: list[dict]) -> dict:
     """Записує chronology в data і перебудовує segments / route_periods."""
-    routes, stops = _catalog_maps(data)
-    series = (data.get("track") or {}).get("cum_km") or []
-    series_times = [int(p[0]) for p in series]
-
+    routes = _routes_by_id(data)
     for trip in chronology:
         route = routes.get(trip["route_id"])
         if route is not None:
             trip["route_name"] = route["name"]
-        route_stops = stops.get(trip["route_id"], {})
-        for mark in trip["marks"]:
-            stop = route_stops.get(mark["stop_id"])
-            if stop is not None:
-                mark["stop_name"] = stop["name"]
 
     occurrences: dict[int, int] = {}
     segments: list[dict] = []
     periods: list[dict] = []
     for trip in sorted(chronology, key=_trip_start):
-        marks = trip["marks"]
-        if len(marks) < 2:
-            continue
         rid = trip["route_id"]
+        route = routes.get(rid)
+        resolved = resolve_trip(trip, route)
+        if resolved is None:
+            continue
+        marks = trip["marks"]
         occurrence = occurrences.get(rid, 0) + 1
         occurrences[rid] = occurrence
         route_name = trip["route_name"] or f"Маршрут {rid}"
-        route_stops = stops.get(rid, {})
+        scale = _distance_scale(route)
         periods.append({
             "route_id": rid,
             "route_name": route_name,
@@ -270,29 +319,30 @@ def apply_chronology(data: dict, chronology: list[dict]) -> dict:
             "trip_uid": trip["uid"],
         })
 
-        def stop_info(mark: dict) -> dict:
-            stop = route_stops.get(mark["stop_id"]) or {}
+        def stop_info(mark: dict, res: dict) -> dict:
             return {
-                "id": mark["stop_id"],
-                "name": mark["stop_name"] or stop.get("name") or f"Зупинка #{mark['stop_id']}",
-                "order": stop.get("order", 0),
+                "id": res["stop"]["id"],
+                "name": res["stop"]["name"],
+                "order": res["stop"].get("order", 0),
                 "arrival_utc": mark["utc"],
                 "departure_utc": mark["utc"],
+                "estimated": res["estimated"],
             }
 
-        for a, b in zip(marks, marks[1:]):
-            km = _km_at(series, series_times, b["utc"]) - _km_at(series, series_times, a["utc"])
+        for i in range(len(marks) - 1):
+            a, b = marks[i], marks[i + 1]
+            ra, rb = resolved[i], resolved[i + 1]
             segments.append({
                 "seg_key": f"m:{a['uid']}:{b['uid']}",
                 "route_id": rid,
                 "route_name": route_name,
                 "occurrence": occurrence,
-                "from_stop": stop_info(a),
-                "to_stop": stop_info(b),
+                "from_stop": stop_info(a, ra),
+                "to_stop": stop_info(b, rb),
                 "period_start_utc": a["utc"],
                 "period_end_utc": b["utc"],
                 "count": a["count_after"],
-                "distance_km": round(max(0.0, km), 2),
+                "distance_km": round(max(0.0, (rb["pos"] - ra["pos"]) * scale), 2),
                 "trip_uid": trip["uid"],
             })
 
@@ -309,7 +359,7 @@ def validate_for_ready(data: dict | None, max_people: int) -> list[dict]:
     """Помилки, що не дають завершити підрахунок: [{message, trip_uid?, mark_uid?}]."""
     data = data or {}
     chronology = data.get("chronology") or []
-    routes, stops = _catalog_maps(data)
+    routes = _routes_by_id(data)
     errors: list[dict] = []
 
     def err(message: str, trip: dict | None = None, mark: dict | None = None) -> None:
@@ -326,35 +376,38 @@ def validate_for_ready(data: dict | None, max_people: int) -> list[dict]:
     for trip in chronology:
         name = trip.get("route_name") or f"Маршрут {trip['route_id']}"
         marks = trip.get("marks") or []
-        if trip["route_id"] not in routes:
+        route = routes.get(trip["route_id"])
+        if route is None:
             err(f"Маршрут «{name}» більше не прив'язаний до машини — видаліть ходку "
                 "або оновіть маршрути.", trip)
             continue
         if len(marks) < 2:
-            err(f"Ходка «{name}»: потрібно щонайменше дві зупинки (початок і кінець).", trip)
+            err(f"Ходка «{name}»: потрібні щонайменше початок і кінець.", trip)
             continue
         if not trip.get("closed"):
-            err(f"Ходка «{name}» не завершена.", trip)
-        route_stops = stops.get(trip["route_id"], {})
+            err(f"Ходка «{name}» не завершена.", trip, marks[-1])
+            continue
+        stops = {s["id"]: s for s in route_stop_positions(route)}
+        start = stops.get(trip.get("start_stop_id"))
+        end = stops.get(trip.get("end_stop_id"))
+        if start is None:
+            err(f"Ходка «{name}»: вкажіть початкову зупинку маршруту.", trip, marks[0])
+        if end is None:
+            err(f"Ходка «{name}»: вкажіть кінцеву зупинку маршруту.", trip, marks[-1])
+        if start is not None and end is not None and end["pos"] <= start["pos"]:
+            err(f"Ходка «{name}»: кінцева зупинка «{end['name']}» має бути далі за маршрутом, "
+                f"ніж початкова «{start['name']}».", trip, marks[-1])
         for i, mark in enumerate(marks):
-            stop_name = mark.get("stop_name") or f"#{mark['stop_id']}"
-            if mark["stop_id"] not in route_stops:
-                err(f"Ходка «{name}»: зупинка «{stop_name}» не належить маршруту.", trip, mark)
-            if i > 0:
-                prev = marks[i - 1]
-                if mark["utc"] <= prev["utc"]:
-                    err(f"Ходка «{name}»: час зупинки «{stop_name}» має бути пізніше "
-                        "попередньої.", trip, mark)
-                if mark["stop_id"] == prev["stop_id"]:
-                    err(f"Ходка «{name}»: зупинка «{stop_name}» відмічена двічі поспіль.",
-                        trip, mark)
+            if i > 0 and mark["utc"] <= marks[i - 1]["utc"]:
+                err(f"Ходка «{name}»: відмітка о {_hms(mark['utc'])} має бути пізніше "
+                    "попередньої.", trip, mark)
             if i < len(marks) - 1:
                 count = mark.get("count_after")
                 if count is None:
-                    err(f"Ходка «{name}»: вкажіть кількість людей після зупинки "
-                        f"«{stop_name}».", trip, mark)
+                    err(f"Ходка «{name}»: вкажіть кількість людей після відмітки "
+                        f"о {_hms(mark['utc'])}.", trip, mark)
                 elif count > max_people:
-                    err(f"Ходка «{name}»: після зупинки «{stop_name}» більше людей, "
+                    err(f"Ходка «{name}»: після відмітки о {_hms(mark['utc'])} більше людей, "
                         f"ніж максимум ({max_people}).", trip, mark)
 
     ordered = sorted((t for t in chronology if t.get("marks")), key=_trip_start)
@@ -363,3 +416,7 @@ def validate_for_ready(data: dict | None, max_people: int) -> list[dict]:
             name = trip.get("route_name") or f"Маршрут {trip['route_id']}"
             err(f"Ходка «{name}» починається раніше, ніж закінчилась попередня.", trip)
     return errors
+
+
+def _hms(utc: int) -> str:
+    return unix_to_local(int(utc)).strftime("%H:%M:%S")

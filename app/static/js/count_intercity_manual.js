@@ -1,11 +1,13 @@
 /**
- * Міжмісто з ручною хронологією: рахувальник за відео відмічає початок маршруту,
- * зупинки та кінець маршруту, а кількість людей вводить на кожен відрізок.
+ * Міжмісто з ручною хронологією: рахувальник за відео відмічає початок маршруту
+ * (час + зупинка), кінець (час + зупинка) і будь-які зупинки між ними (лише час),
+ * а кількість людей вводить на кожен відрізок.
  *
- * Стан — chronology: [{uid, route_id, route_name, closed, marks: [{uid, stop_id,
- * stop_name, utc, count_after}]}]. Відрізок = пара сусідніх відміток ходки,
- * його кількість — count_after першої з них. Сервер виводить із chronology ті ж
- * segments, що й автоматичний режим.
+ * Стан — chronology: [{uid, route_id, route_name, closed, start_stop_id,
+ * end_stop_id, marks: [{uid, utc, count_after}]}]. Відрізок = пара сусідніх
+ * відміток ходки, його кількість — count_after першої з них. Реальні зупинки
+ * проміжних відміток обчислюються за часом (resolveTrip — та сама логіка, що
+ * й manual_chronology_service.resolve_trip на сервері).
  *
  * Відмітки додаються з бічної панелі («+» або клавіша +) на поточному часі відео;
  * що саме додати (початок маршруту, зупинку, кінець), визначає контекст часу.
@@ -29,10 +31,10 @@ let trips = (cfg.chronology || []).map((t) => ({
     route_id: t.route_id,
     route_name: t.route_name || "",
     closed: !!t.closed,
+    start_stop_id: t.start_stop_id ?? null,
+    end_stop_id: t.closed ? (t.end_stop_id ?? null) : null,
     marks: (t.marks || []).map((m) => ({
         uid: m.uid || newUid(),
-        stop_id: m.stop_id,
-        stop_name: m.stop_name || "",
         utc: m.utc,
         count_after: m.count_after ?? null,
     })),
@@ -62,7 +64,6 @@ const tripStart = (t) => (t.marks.length ? t.marks[0].utc : Infinity);
 const tripEnd = (t) => (t.marks.length ? t.marks[t.marks.length - 1].utc : -Infinity);
 const openTrip = () => trips.find((t) => !t.closed) || null;
 const findTrip = (uid) => trips.find((t) => t.uid === uid) || null;
-const stopsOf = (routeId) => (routeById.get(routeId) || {}).stops || [];
 const inverseOf = (routeId) => routeById.get((routeById.get(routeId) || {}).inverse_route_id) || null;
 
 function routeName(routeId, fallback = "") {
@@ -70,12 +71,75 @@ function routeName(routeId, fallback = "") {
     return r ? r.name : (fallback || `Маршрут ${routeId}`);
 }
 
-function stopName(routeId, stopId, fallback = "") {
-    const s = stopsOf(routeId).find((x) => x.id === stopId);
-    return s ? s.name : (fallback || `Зупинка #${stopId}`);
+const positionsCache = new Map();
+
+/** Зупинки маршруту з позицією pos (км; без лінії маршруту — номер), за pos. */
+function stopsOf(routeId) {
+    if (positionsCache.has(routeId)) return positionsCache.get(routeId);
+    const stops = (routeById.get(routeId) || {}).stops || [];
+    let out;
+    if (stops.some((s) => s.km === null || s.km === undefined)) {
+        out = stops.map((s, i) => ({ ...s, pos: i }));
+    } else {
+        out = stops.map((s) => ({ ...s, pos: Number(s.km) }));
+        out.sort((a, b) => a.pos - b.pos || (a.order || 0) - (b.order || 0) || a.id - b.id);
+    }
+    positionsCache.set(routeId, out);
+    return out;
 }
 
-const markName = (trip, mark) => mark.stop_name || stopName(trip.route_id, mark.stop_id);
+function stopName(routeId, stopId) {
+    const s = stopsOf(routeId).find((x) => x.id === stopId);
+    return s ? s.name : `Зупинка #${stopId}`;
+}
+
+const stopPos = (routeId, stopId) => (stopsOf(routeId).find((s) => s.id === stopId) || {}).pos;
+
+/**
+ * Зупинка кожної відмітки завершеної ходки: [{stop, estimated}] або null.
+ * Проміжна відмітка: частка часу ходки → позиція між початковою і кінцевою
+ * зупинкою → найближча зупинка, не раніше попередньої (на рівній — раніша).
+ */
+function resolveTrip(trip) {
+    const marks = trip.marks;
+    if (!trip.closed || marks.length < 2) return null;
+    const stops = stopsOf(trip.route_id);
+    const ia = stops.findIndex((s) => s.id === trip.start_stop_id);
+    const ib = stops.findIndex((s) => s.id === trip.end_stop_id);
+    if (ia < 0 || ib < 0 || stops[ib].pos <= stops[ia].pos) return null;
+    const posA = stops[ia].pos;
+    const posB = stops[ib].pos;
+    const t0 = marks[0].utc;
+    const t1 = marks[marks.length - 1].utc;
+    if (t1 <= t0) return null;
+    const out = [{ stop: stops[ia], estimated: false }];
+    let lo = ia;
+    for (const mark of marks.slice(1, -1)) {
+        const frac = Math.min(1, Math.max(0, (mark.utc - t0) / (t1 - t0)));
+        const pos = posA + frac * (posB - posA);
+        let best = lo;
+        for (let j = lo + 1; j <= ib; j++) {
+            if (Math.abs(stops[j].pos - pos) < Math.abs(stops[best].pos - pos)) best = j;
+        }
+        lo = best;
+        out.push({ stop: stops[best], estimated: true });
+    }
+    out.push({ stop: stops[ib], estimated: false });
+    return out;
+}
+
+/** Назви відміток ходки для списку: обчислені — з «≈», невідомі (ходка триває) — «зупинка N». */
+function markLabels(trip) {
+    const resolved = resolveTrip(trip);
+    return trip.marks.map((m, i) => {
+        if (resolved) return (resolved[i].estimated ? "≈ " : "") + resolved[i].stop.name;
+        if (i === 0 && trip.start_stop_id) return stopName(trip.route_id, trip.start_stop_id);
+        if (i === trip.marks.length - 1 && trip.closed && trip.end_stop_id) {
+            return stopName(trip.route_id, trip.end_stop_id);
+        }
+        return `зупинка ${i + 1}`;
+    });
+}
 
 function sortTrips() {
     trips.forEach((t) => t.marks.sort((a, b) => a.utc - b.utc));
@@ -156,19 +220,8 @@ function segmentFilled(seg) {
     return seg.from.count_after !== null && seg.from.count_after !== undefined;
 }
 
-/** Наступна зупинка за порядком маршруту після відмітки mark. */
-function nextStopId(routeId, mark) {
-    const stops = stopsOf(routeId);
-    if (!stops.length) return null;
-    if (!mark) return stops[0].id;
-    const idx = stops.findIndex((s) => s.id === mark.stop_id);
-    return (stops[idx + 1] || stops[idx] || stops[0]).id;
-}
-
-function isLastStop(routeId, stopId) {
-    const stops = stopsOf(routeId);
-    return stops.length > 0 && stops[stops.length - 1].id === stopId;
-}
+const firstStopId = (routeId) => (stopsOf(routeId)[0] || {}).id ?? null;
+const lastStopId = (routeId) => (stopsOf(routeId).slice(-1)[0] || {}).id ?? null;
 
 // ── вікно плеєра ─────────────────────────────────────────────────────
 
@@ -267,8 +320,8 @@ function changed() {
     render();
 }
 
-function makeMark(routeId, stopId, utc) {
-    return { uid: newUid(), stop_id: stopId, stop_name: stopName(routeId, stopId), utc, count_after: null };
+function makeMark(utc) {
+    return { uid: newUid(), utc, count_after: null };
 }
 
 function hasStop(routeId, stopId) {
@@ -278,21 +331,23 @@ function hasStop(routeId, stopId) {
 function startTrip(routeId, stopId, utc) {
     if (openTrip()) return fail("Спочатку завершіть поточну ходку.");
     if (!routeById.has(routeId)) return fail("Оберіть маршрут.");
-    if (!hasStop(routeId, stopId)) return fail("Оберіть зупинку маршруту.");
+    if (!hasStop(routeId, stopId)) return fail("Оберіть початкову зупинку маршруту.");
     if (tripCovering(utc)) return fail("Поточний час усередині іншої ходки.");
-    const mark = makeMark(routeId, stopId, utc);
-    const trip = { uid: newUid(), route_id: routeId, route_name: routeName(routeId), closed: false, marks: [mark] };
+    const mark = makeMark(utc);
+    const trip = {
+        uid: newUid(), route_id: routeId, route_name: routeName(routeId), closed: false,
+        start_stop_id: stopId, end_stop_id: null, marks: [mark],
+    };
     trips.push(trip);
     changed();
     select(trip.uid, mark.uid, { focusCount: true });
     return trip;
 }
 
-function addStop(trip, stopId, utc) {
-    if (!hasStop(trip.route_id, stopId)) return fail("Оберіть зупинку маршруту.");
+function addStop(trip, utc) {
     if (trip.marks.some((m) => m.utc === utc)) return fail("На цей час уже є відмітка.");
     if (utc >= nextTripStart(trip)) return fail("Час заходить на наступну ходку.");
-    const mark = makeMark(trip.route_id, stopId, utc);
+    const mark = makeMark(utc);
     trip.marks.push(mark);
     changed();
     select(trip.uid, mark.uid, { focusCount: true });
@@ -304,10 +359,15 @@ function finishTrip(trip, stopId, utc) {
     if (utc <= tripEnd(trip)) return fail("Кінець маршруту має бути пізніше останньої зупинки.");
     if (utc > nextTripStart(trip)) return fail("Час заходить на наступну ходку.");
     if (!hasStop(trip.route_id, stopId)) return fail("Оберіть кінцеву зупинку.");
+    const startPos = stopPos(trip.route_id, trip.start_stop_id);
+    if (startPos !== undefined && stopPos(trip.route_id, stopId) <= startPos) {
+        return fail("Кінцева зупинка має бути далі за маршрутом, ніж початкова.");
+    }
     syncCountInput();
-    const mark = makeMark(trip.route_id, stopId, utc);
+    const mark = makeMark(utc);
     trip.marks.push(mark);
     trip.closed = true;
+    trip.end_stop_id = stopId;
     sel = null;
     changed();
     applyWindow();
@@ -318,16 +378,17 @@ function finishTrip(trip, stopId, utc) {
 function reverseTrip(trip, stopId, utc) {
     const inverse = inverseOf(trip.route_id);
     if (!inverse) return fail("Для цього маршруту не вказано зворотній.");
-    const firstStop = (inverse.stops || [])[0];
-    if (!firstStop) return fail("У зворотного маршруту немає зупинок.");
+    const firstStop = firstStopId(inverse.id);
+    if (firstStop === null) return fail("У зворотного маршруту немає зупинок.");
     const done = finishTrip(trip, stopId, utc);
     if (!done) return null;
-    return startTrip(inverse.id, firstStop.id, done.mark.utc);
+    return startTrip(inverse.id, firstStop, done.mark.utc);
 }
 
 function reopenTrip(trip) {
     if (openTrip()) return fail("Спочатку завершіть поточну ходку.");
     trip.closed = false;
+    trip.end_stop_id = null;
     changed();
     const last = trip.marks[trip.marks.length - 1];
     if (last) select(trip.uid, last.uid, { focusCount: true });
@@ -346,14 +407,18 @@ function deleteTrip(trip) {
 function deleteSelectedMark() {
     const s = selectedMark();
     if (!s) return;
-    if (!window.confirm(`Видалити зупинку «${markName(s.trip, s.mark)}» (${clock(s.mark.utc)})?`)) return;
+    const label = markLabels(s.trip)[s.idx];
+    if (!window.confirm(`Видалити відмітку «${label}» (${clock(s.mark.utc)})?`)) return;
     const wasLast = s.idx === s.trip.marks.length - 1;
     s.trip.marks.splice(s.idx, 1);
     if (!s.trip.marks.length) {
         trips = trips.filter((t) => t !== s.trip);
         sel = null;
     } else {
-        if (wasLast && s.trip.closed && !openTrip()) s.trip.closed = false;
+        if (wasLast && s.trip.closed && !openTrip()) {
+            s.trip.closed = false;
+            s.trip.end_stop_id = null;
+        }
         const prev = s.trip.marks[Math.max(0, s.idx - 1)];
         sel = { tripUid: s.trip.uid, markUid: prev.uid };
     }
@@ -374,11 +439,10 @@ function setSelectedTime() {
     applyWindow(utc);
 }
 
-function setSelectedStop(stopId) {
-    const s = selectedMark();
-    if (!s || !stopId) return;
-    s.mark.stop_id = stopId;
-    s.mark.stop_name = stopName(s.trip.route_id, stopId);
+/** Початкова / кінцева зупинка ходки (лише для першої та кінцевої відмітки). */
+function setTripStop(trip, field, stopId) {
+    if (!stopId) return;
+    trip[field] = stopId;
     changed();
 }
 
@@ -509,64 +573,78 @@ function renderComposer(focus = false) {
         return;
     }
 
-    const routeId = () => (ctx.kind === "new" ? Number(routeSel.value) : ctx.trip.route_id);
-    let routeSel = null;
-    if (ctx.kind === "new") {
-        routeSel = document.createElement("select");
-        routeSel.setAttribute("aria-label", "Маршрут");
-        routeSel.innerHTML = routeOptionsHtml(ctx);
-        box.appendChild(routeSel);
-    }
-    const stopSel = document.createElement("select");
-    stopSel.setAttribute("aria-label", "Зупинка");
-    box.appendChild(stopSel);
-
-    const actions = document.createElement("div");
-    actions.className = "cm-composer-actions";
-    box.append(actions, msg);
-
-    const stopId = () => Number(stopSel.value);
     const now = () => nowUtc();
     const done = (res) => { if (res) closeComposer(); };
-    let buttons = [];
+    const actions = (...buttons) => {
+        const row = document.createElement("div");
+        row.className = "cm-composer-actions";
+        row.append(...buttons);
+        return row;
+    };
+    let primary;
 
     if (ctx.kind === "new") {
-        buttons = [composerButton("Почати маршрут", "Enter",
-            () => done(startTrip(routeId(), stopId(), now())))];
+        const routeSel = document.createElement("select");
+        routeSel.setAttribute("aria-label", "Маршрут");
+        routeSel.innerHTML = routeOptionsHtml(ctx);
+        const stopSel = stopSelect(Number(routeSel.value), null, "Початкова зупинка");
+        routeSel.addEventListener("change", () => {
+            fillStopSelect(stopSel, Number(routeSel.value), firstStopId(Number(routeSel.value)));
+        });
+        primary = composerButton("Почати маршрут", "Enter",
+            () => done(startTrip(Number(routeSel.value), Number(stopSel.value), now())));
+        box.append(routeSel, labeled("Початкова зупинка", stopSel), actions(primary));
+        if (focus) routeSel.focus();
     } else if (ctx.kind === "insert") {
-        buttons = [composerButton("Додати зупинку", "Enter",
-            () => done(addStop(ctx.trip, stopId(), now())))];
+        primary = composerButton("Додати зупинку", "Enter",
+            () => done(addStop(ctx.trip, now())));
+        box.append(hint("Зупинку програма визначить за часом."), actions(primary));
+        if (focus) primary.focus();
     } else {
-        buttons = [
-            composerButton("Зупинка", "Проміжна зупинка", () => done(addStop(ctx.trip, stopId(), now()))),
-            composerButton("Кінець маршруту", "Завершити ходку на цій зупинці",
-                () => done(finishTrip(ctx.trip, stopId(), now()))),
-        ];
+        primary = composerButton("Зупинка", "Enter — проміжна зупинка (визначиться за часом)",
+            () => done(addStop(ctx.trip, now())));
+        const endSel = stopSelect(ctx.trip.route_id, lastStopId(ctx.trip.route_id), "Кінцева зупинка");
+        const endButtons = [composerButton("Кінець маршруту", "Завершити ходку на вибраній кінцевій зупинці",
+            () => done(finishTrip(ctx.trip, Number(endSel.value), now())))];
         const inverse = inverseOf(ctx.trip.route_id);
         if (inverse) {
-            buttons.push(composerButton("Кінець + зворотній", `Завершити і одразу почати «${inverse.name}»`,
-                () => done(reverseTrip(ctx.trip, stopId(), now()))));
+            endButtons.push(composerButton("Кінець + зворотній", `Завершити і одразу почати «${inverse.name}»`,
+                () => done(reverseTrip(ctx.trip, Number(endSel.value), now()))));
         }
+        box.append(actions(primary), labeled("Кінцева зупинка", endSel), actions(...endButtons));
+        if (focus) primary.focus();
     }
-    actions.append(...buttons);
+    primary.classList.add("btn-primary");
+    composer.primary = primary;
+    box.appendChild(msg);
+}
 
-    // Основна дія (Enter / +): для відкритої ходки на кінцевій зупинці — завершення.
-    const refreshPrimary = () => {
-        const primaryIdx = ctx.kind === "continue" && isLastStop(routeId(), stopId()) ? 1 : 0;
-        buttons.forEach((b, i) => b.classList.toggle("btn-primary", i === primaryIdx));
-        composer.primary = buttons[primaryIdx];
-    };
-    const fillStops = () => {
-        const rid = routeId();
-        const suggestion = ctx.kind === "new" ? nextStopId(rid, null) : nextStopId(rid, ctx.prev);
-        stopSel.innerHTML = stopsOf(rid).map((s) => optionHtml(s)).join("");
-        if (suggestion) stopSel.value = String(suggestion);
-        refreshPrimary();
-    };
-    routeSel?.addEventListener("change", fillStops);
-    stopSel.addEventListener("change", refreshPrimary);
-    fillStops();
-    if (focus) (routeSel || stopSel).focus();
+function fillStopSelect(select, routeId, value) {
+    select.innerHTML = stopsOf(routeId).map((s) => optionHtml(s)).join("");
+    if (value !== null && value !== undefined) select.value = String(value);
+}
+
+function stopSelect(routeId, value, label) {
+    const select = document.createElement("select");
+    select.setAttribute("aria-label", label);
+    fillStopSelect(select, routeId, value ?? firstStopId(routeId));
+    return select;
+}
+
+function labeled(text, control) {
+    const label = document.createElement("label");
+    label.className = "cm-composer-field";
+    const span = document.createElement("span");
+    span.textContent = text;
+    label.append(span, control);
+    return label;
+}
+
+function hint(text) {
+    const el = document.createElement("div");
+    el.className = "cm-composer-hint";
+    el.textContent = text;
+    return el;
 }
 
 function tickComposer() {
@@ -631,20 +709,31 @@ function iconButton(text, title, onClick, danger = false) {
     return btn;
 }
 
-/** Правка вибраної відмітки: зупинка, час (з плеєра), видалення. */
-function markEditRow(trip, mark, label) {
+/**
+ * Правка вибраної відмітки: час (з плеєра), видалення; для першої / кінцевої —
+ * ще й зупинка ходки. Проміжні зупинки не вибираються — їх обчислює програма.
+ */
+function markEditRow(trip, idx) {
     const row = document.createElement("div");
     row.className = "cm-edit";
-    const stopSel = document.createElement("select");
-    stopSel.title = label;
-    stopSel.setAttribute("aria-label", label);
-    stopSel.innerHTML = stopsOf(trip.route_id).map((s) => optionHtml(s)).join("");
-    stopSel.value = String(mark.stop_id);
-    stopSel.addEventListener("change", () => setSelectedStop(Number(stopSel.value)));
+    const isFirst = idx === 0;
+    const isEnd = trip.closed && idx === trip.marks.length - 1;
+    if (isFirst || isEnd) {
+        const field = isFirst ? "start_stop_id" : "end_stop_id";
+        const label = isFirst ? "Початкова зупинка ходки" : "Кінцева зупинка ходки";
+        const stopSel = stopSelect(trip.route_id, trip[field], label);
+        stopSel.title = label;
+        stopSel.addEventListener("change", () => setTripStop(trip, field, Number(stopSel.value)));
+        row.appendChild(stopSel);
+    } else {
+        const note = document.createElement("span");
+        note.className = "cm-edit-note";
+        note.textContent = trip.closed ? "зупинка — за часом" : "зупинка — після завершення ходки";
+        row.appendChild(note);
+    }
     row.append(
-        stopSel,
         iconButton("⏱", "Перенести відмітку на поточний час відео", setSelectedTime),
-        iconButton("✕", "Видалити цю зупинку", deleteSelectedMark, true),
+        iconButton("✕", "Видалити цю відмітку", deleteSelectedMark, true),
     );
     return row;
 }
@@ -679,10 +768,14 @@ function renderSidebar() {
         head.className = "cc-trip-head";
         const done = segs.filter((s) => s.to && segmentFilled(s)).length;
         const total = segs.filter((s) => s.to).length;
+        const labels = markLabels(trip);
+        const unresolved = trip.closed && !resolveTrip(trip);
+        const meta = !trip.closed ? "триває" : unresolved ? "⚠ зупинки" : `${done}/${total}`;
         head.innerHTML =
             `<span class="cc-trip-name">${escapeHtml(routeName(trip.route_id, trip.route_name))}`
             + ` · ходка #${occ.get(trip.uid) || "?"}</span>`
-            + `<span class="cc-trip-meta">${trip.closed ? `${done}/${total}` : "триває"}</span>`;
+            + `<span class="cc-trip-meta"${unresolved
+                ? ' title="Кінцева зупинка має бути далі за маршрутом, ніж початкова"' : ""}>${meta}</span>`;
         if (!readOnly) {
             const tools = document.createElement("span");
             tools.className = "cm-trip-tools";
@@ -695,6 +788,7 @@ function renderSidebar() {
         tripEl.appendChild(head);
 
         for (const seg of segs) {
+            const idx = trip.marks.indexOf(seg.from);
             const active = !!sel && sel.markUid === seg.from.uid;
             const btn = document.createElement("button");
             btn.type = "button";
@@ -702,31 +796,32 @@ function renderSidebar() {
             if (active) btn.classList.add("is-active");
             if (segmentFilled(seg)) btn.classList.add("is-filled");
             if (!seg.to) btn.classList.add("is-open");
-            const to = seg.to ? markName(trip, seg.to) : "…";
+            const to = seg.to ? labels[idx + 1] : "…";
             const t1 = seg.to ? clockHm(seg.to.utc) : "…";
             const count = segmentFilled(seg) ? String(seg.from.count_after) : "—";
             btn.innerHTML =
-                `<span class="cc-seg-stops">${escapeHtml(markName(trip, seg.from))} – ${escapeHtml(to)}</span>`
+                `<span class="cc-seg-stops">${escapeHtml(labels[idx])} – ${escapeHtml(to)}</span>`
                 + `<span class="cc-seg-row">`
                 + `<span class="cc-seg-time">${clockHm(seg.from.utc)} – ${t1}</span>`
                 + `<span class="cc-seg-count">${count}</span>`
                 + `</span>`;
             btn.addEventListener("click", () => select(trip.uid, seg.from.uid, { focusCount: !readOnly }));
             tripEl.appendChild(btn);
-            if (active && !readOnly) tripEl.appendChild(markEditRow(trip, seg.from, "Зупинка початку відрізка"));
+            if (active && !readOnly) tripEl.appendChild(markEditRow(trip, idx));
         }
 
         if (trip.closed && trip.marks.length) {
-            const last = trip.marks[trip.marks.length - 1];
+            const lastIdx = trip.marks.length - 1;
+            const last = trip.marks[lastIdx];
             const active = !!sel && sel.markUid === last.uid;
             const end = document.createElement("button");
             end.type = "button";
             end.className = "cm-trip-end" + (active ? " is-active" : "");
-            end.innerHTML = `<span>Кінець: ${escapeHtml(markName(trip, last))}</span>`
+            end.innerHTML = `<span>Кінець: ${escapeHtml(labels[lastIdx])}</span>`
                 + `<span class="cc-seg-time">${clockHm(last.utc)}</span>`;
             end.addEventListener("click", () => select(trip.uid, last.uid));
             tripEl.appendChild(end);
-            if (active && !readOnly) tripEl.appendChild(markEditRow(trip, last, "Кінцева зупинка"));
+            if (active && !readOnly) tripEl.appendChild(markEditRow(trip, lastIdx));
         }
         body.appendChild(tripEl);
     }
@@ -775,6 +870,8 @@ function chronologyPayload() {
         route_id: t.route_id,
         route_name: routeName(t.route_id, t.route_name),
         closed: t.closed,
+        start_stop_id: t.start_stop_id,
+        end_stop_id: t.closed ? t.end_stop_id : null,
         marks: t.marks.map((m) => ({ ...m })),
     }));
 }

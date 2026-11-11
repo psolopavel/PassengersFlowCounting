@@ -164,6 +164,7 @@ def count_view(
     counter_id: int | None = None,
     mode: str = "",
     db: Session = Depends(get_db),
+    routes_db: Session = Depends(get_routes_db),
     user: User = Depends(require_panel_access),
 ):
     """Платформа підрахунку: місто / міжмісто / final_stop — повний UI.
@@ -223,6 +224,11 @@ def count_view(
             )
 
         if data.get("kind") == "intercity" and manual_svc.is_manual(data):
+            route_notices: list[str] = []
+            if not read_only and session.status == "in_progress":
+                route_notices = css.sync_manual_routes(db, routes_db, session, car)
+                if route_notices:
+                    data = css.load_data(session)
             config["kind"] = "intercity"
             config["mode"] = manual_svc.MODE_MANUAL
             config["maxPeopleCountInCar"] = car_svc.max_people_for_car(car)
@@ -236,7 +242,7 @@ def count_view(
                 panel_mode_label=panel_mode_label,
                 read_only=read_only,
                 routes_viewer_href=routes_viewer_href,
-                warnings=data.get("warnings") or [],
+                warnings=route_notices + (data.get("warnings") or []),
                 config_json=json.dumps(config, ensure_ascii=False),
                 active_page="count",
             )

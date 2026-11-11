@@ -310,16 +310,7 @@ def _build_intercity_manual(
         warnings.append(f"IMEI {car.imei} не знайдено в gps.trackers")
 
     catalog = manual_svc.load_route_catalog(routes_db, car.imei)
-    if not catalog:
-        warnings.append("Немає прив'язаних маршрутів (all_car_routes)")
-    for route in catalog:
-        if len(route["stops"]) < 2:
-            warnings.append(f"Маршрут «{route['name']}»: менше двох зупинок — ходку по ньому не завершити")
-        elif route["length_km"] is None:
-            warnings.append(
-                f"Маршрут «{route['name']}» без лінії на карті — зупинки розподіляються "
-                "рівномірно за порядком, кілометри не рахуються"
-            )
+    warnings.extend(manual_svc.catalog_warnings(catalog))
 
     distance_km = track_service.track_distance_km(track)
     data = {

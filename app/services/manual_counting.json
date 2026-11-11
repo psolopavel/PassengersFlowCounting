@@ -1,0 +1,731 @@
+{
+   "kind": "intercity",
+   "mode": "manual_chronology",
+   "source_used": "photoAndVideo",
+   "window": {
+      "start_utc": 1793934000,
+      "end_utc": 1794002340
+   },
+   "distance_km": 291.45,
+   "track": {
+      "points": 3507,
+      "distance_km": 291.45,
+      "source": "gps._car_795"
+   },
+   "routes_catalog": [
+      {
+         "id": 478,
+         "name": "Київ - Витячів - Обухів",
+         "inverse_route_id": 477,
+         "length_km": 74.689,
+         "stops": [
+            {
+               "id": 4812,
+               "name": "Киев",
+               "order": 0,
+               "km": 0.338
+            },
+            {
+               "id": 4817,
+               "name": "БазаДинамо",
+               "order": 1,
+               "km": 10.041
+            },
+            {
+               "id": 4819,
+               "name": "КончаЗаспа",
+               "order": 2,
+               "km": 12.435
+            },
+            {
+               "id": 4820,
+               "name": "СанКончаЗаспа",
+               "order": 3,
+               "km": 13.023
+            },
+            {
+               "id": 4821,
+               "name": "КончаОзерна",
+               "order": 4,
+               "km": 15.636
+            },
+            {
+               "id": 4822,
+               "name": "Козин2",
+               "order": 5,
+               "km": 20.94
+            },
+            {
+               "id": 4824,
+               "name": "Трипілля",
+               "order": 10,
+               "km": 40.522
+            },
+            {
+               "id": 4825,
+               "name": "Халеп'я",
+               "order": 11,
+               "km": 43.956
+            },
+            {
+               "id": 4826,
+               "name": "Витачів",
+               "order": 12,
+               "km": 50.041
+            },
+            {
+               "id": 4823,
+               "name": "Українка",
+               "order": 9,
+               "km": 64.834
+            },
+            {
+               "id": 4828,
+               "name": "Піщана",
+               "order": 6,
+               "km": 72.826
+            },
+            {
+               "id": 4992,
+               "name": "Обухів",
+               "order": 7,
+               "km": 73.513
+            },
+            {
+               "id": 4830,
+               "name": "Центр",
+               "order": 8,
+               "km": 74.663
+            }
+         ]
+      },
+      {
+         "id": 477,
+         "name": "Обухів - Витячів - Київ",
+         "inverse_route_id": 478,
+         "length_km": 83.121,
+         "stops": [
+            {
+               "id": 4801,
+               "name": "Центр",
+               "order": 0,
+               "km": 0.017
+            },
+            {
+               "id": 4989,
+               "name": "Обухів",
+               "order": 1,
+               "km": 1.74
+            },
+            {
+               "id": 4803,
+               "name": "Піщана",
+               "order": 2,
+               "km": 3.145
+            },
+            {
+               "id": 4807,
+               "name": "Трипілля",
+               "order": 5,
+               "km": 15.126
+            },
+            {
+               "id": 4806,
+               "name": "Халеп'я",
+               "order": 4,
+               "km": 18.708
+            },
+            {
+               "id": 4805,
+               "name": "Витачів",
+               "order": 3,
+               "km": 25.109
+            },
+            {
+               "id": 4808,
+               "name": "Українка",
+               "order": 6,
+               "km": 39.933
+            },
+            {
+               "id": 4809,
+               "name": "Козин2",
+               "order": 7,
+               "km": 53.114
+            },
+            {
+               "id": 4810,
+               "name": "СанКончаЗаспа",
+               "order": 8,
+               "km": 62.541
+            },
+            {
+               "id": 4811,
+               "name": "КончаЗаспа",
+               "order": 9,
+               "km": 63.214
+            },
+            {
+               "id": 4795,
+               "name": "БазаДинамо",
+               "order": 10,
+               "km": 65.468
+            },
+            {
+               "id": 4799,
+               "name": "Киев",
+               "order": 11,
+               "km": 82.036
+            }
+         ]
+      },
+      {
+         "id": 500,
+         "name": "№3. Київ - Обухів( Лісники )",
+         "inverse_route_id": 481,
+         "length_km": 77.473,
+         "stops": [
+            {
+               "id": 4853,
+               "name": "Киев",
+               "order": 1,
+               "km": 0.005
+            },
+            {
+               "id": 4854,
+               "name": "Лісники",
+               "order": 1,
+               "km": 51.885
+            },
+            {
+               "id": 4855,
+               "name": "Таценки",
+               "order": 2,
+               "km": 71.165
+            },
+            {
+               "id": 4856,
+               "name": "Піщана",
+               "order": 3,
+               "km": 74.438
+            },
+            {
+               "id": 4857,
+               "name": "Школа",
+               "order": 4,
+               "km": 75.634
+            },
+            {
+               "id": 4858,
+               "name": "Центр",
+               "order": 5,
+               "km": 77.471
+            }
+         ]
+      },
+      {
+         "id": 481,
+         "name": "№3. Обухів - Київ(Лісники)",
+         "inverse_route_id": 500,
+         "length_km": 67.849,
+         "stops": [
+            {
+               "id": 4847,
+               "name": "Центр",
+               "order": 1,
+               "km": 0.011
+            },
+            {
+               "id": 4848,
+               "name": "Школа",
+               "order": 1,
+               "km": 1.767
+            },
+            {
+               "id": 4849,
+               "name": "Піщана",
+               "order": 2,
+               "km": 2.966
+            },
+            {
+               "id": 4850,
+               "name": "Таценки",
+               "order": 3,
+               "km": 6.614
+            },
+            {
+               "id": 4851,
+               "name": "Лісники",
+               "order": 4,
+               "km": 25.834
+            },
+            {
+               "id": 4852,
+               "name": "Киев",
+               "order": 5,
+               "km": 67.849
+            }
+         ]
+      },
+      {
+         "id": 783,
+         "name": "Київ - Обухів",
+         "inverse_route_id": 784,
+         "length_km": 36.623,
+         "stops": [
+            {
+               "id": 8429,
+               "name": "Київ",
+               "order": 6,
+               "km": 0.039
+            },
+            {
+               "id": 8428,
+               "name": "БазаДинамо",
+               "order": 5,
+               "km": 9.898
+            },
+            {
+               "id": 8427,
+               "name": "КончаЗаспа",
+               "order": 4,
+               "km": 12.154
+            },
+            {
+               "id": 8426,
+               "name": "СанКончаЗаспа",
+               "order": 3,
+               "km": 12.828
+            },
+            {
+               "id": 8425,
+               "name": "Козин",
+               "order": 2,
+               "km": 21.717
+            },
+            {
+               "id": 8424,
+               "name": "Таценки",
+               "order": 1,
+               "km": 29.217
+            },
+            {
+               "id": 8423,
+               "name": "Обухів",
+               "order": 0,
+               "km": 33.778
+            }
+         ]
+      },
+      {
+         "id": 784,
+         "name": "Обухів - Київ",
+         "inverse_route_id": 783,
+         "length_km": 38.182,
+         "stops": [
+            {
+               "id": 8437,
+               "name": "Центр",
+               "order": 7,
+               "km": 2.396
+            },
+            {
+               "id": 8436,
+               "name": "Обухів",
+               "order": 6,
+               "km": 2.9
+            },
+            {
+               "id": 8435,
+               "name": "Таценки",
+               "order": 5,
+               "km": 7.819
+            },
+            {
+               "id": 8434,
+               "name": "Козин",
+               "order": 4,
+               "km": 15.314
+            },
+            {
+               "id": 8433,
+               "name": "СанКончаЗаспа",
+               "order": 3,
+               "km": 24.203
+            },
+            {
+               "id": 8432,
+               "name": "КончаЗаспа",
+               "order": 2,
+               "km": 24.877
+            },
+            {
+               "id": 8431,
+               "name": "БазаДинамо",
+               "order": 1,
+               "km": 35.831
+            },
+            {
+               "id": 8430,
+               "name": "Київ",
+               "order": 0,
+               "km": 36.46
+            }
+         ]
+      }
+   ],
+   "meta": {
+      "rebuild_count": 0
+   },
+   "warnings": [],
+   "generated_at": 1794417144,
+   "chronology": [
+      {
+         "uid": "jdy5vdz2nod8",
+         "route_id": 478,
+         "route_name": "Київ - Витячів - Обухів",
+         "closed": true,
+         "start_stop_id": 4812,
+         "end_stop_id": 4830,
+         "marks": [
+            {
+               "uid": "b76wj4ibnod8",
+               "utc": 1793946963,
+               "count_after": 17
+            },
+            {
+               "uid": "csh85v3qo9vq",
+               "utc": 1793948235,
+               "count_after": 13
+            },
+            {
+               "uid": "8guchiiip4rs",
+               "utc": 1793948545,
+               "count_after": 12
+            },
+            {
+               "uid": "kx33sfm3pvvt",
+               "utc": 1793948804,
+               "count_after": 9
+            },
+            {
+               "uid": "rvyr36dbqqy6",
+               "utc": 1793949233,
+               "count_after": 9
+            },
+            {
+               "uid": "89ig6b8lrsjd",
+               "utc": 1793949346,
+               "count_after": 8
+            },
+            {
+               "uid": "mxardlg0s4go",
+               "utc": 1793949600,
+               "count_after": 8
+            },
+            {
+               "uid": "vdqivly6t46s",
+               "utc": 1793949675,
+               "count_after": 8
+            },
+            {
+               "uid": "ehmw1si9tpin",
+               "utc": 1793949887,
+               "count_after": 8
+            },
+            {
+               "uid": "5t3e4ju9ulvh",
+               "utc": 1793950066,
+               "count_after": 1
+            },
+            {
+               "uid": "itmcns5vyrqb",
+               "utc": 1793950465,
+               "count_after": null
+            }
+         ]
+      }
+   ],
+   "segments": [
+      {
+         "seg_key": "m:b76wj4ibnod8:csh85v3qo9vq",
+         "route_id": 478,
+         "route_name": "Київ - Витячів - Обухів",
+         "occurrence": 1,
+         "from_stop": {
+            "id": 4812,
+            "name": "Киев",
+            "order": 0,
+            "arrival_utc": 1793946963,
+            "departure_utc": 1793946963,
+            "estimated": false
+         },
+         "to_stop": {
+            "id": 4822,
+            "name": "Козин2",
+            "order": 5,
+            "arrival_utc": 1793948235,
+            "departure_utc": 1793948235,
+            "estimated": true
+         },
+         "period_start_utc": 1793946963,
+         "period_end_utc": 1793948235,
+         "count": 17,
+         "distance_km": 27.0,
+         "trip_uid": "jdy5vdz2nod8"
+      },
+      {
+         "seg_key": "m:csh85v3qo9vq:8guchiiip4rs",
+         "route_id": 478,
+         "route_name": "Київ - Витячів - Обухів",
+         "occurrence": 1,
+         "from_stop": {
+            "id": 4822,
+            "name": "Козин2",
+            "order": 5,
+            "arrival_utc": 1793948235,
+            "departure_utc": 1793948235,
+            "estimated": true
+         },
+         "to_stop": {
+            "id": 4824,
+            "name": "Трипілля",
+            "order": 10,
+            "arrival_utc": 1793948545,
+            "departure_utc": 1793948545,
+            "estimated": true
+         },
+         "period_start_utc": 1793948235,
+         "period_end_utc": 1793948545,
+         "count": 13,
+         "distance_km": 6.58,
+         "trip_uid": "jdy5vdz2nod8"
+      },
+      {
+         "seg_key": "m:8guchiiip4rs:kx33sfm3pvvt",
+         "route_id": 478,
+         "route_name": "Київ - Витячів - Обухів",
+         "occurrence": 1,
+         "from_stop": {
+            "id": 4824,
+            "name": "Трипілля",
+            "order": 10,
+            "arrival_utc": 1793948545,
+            "departure_utc": 1793948545,
+            "estimated": true
+         },
+         "to_stop": {
+            "id": 4824,
+            "name": "Трипілля",
+            "order": 10,
+            "arrival_utc": 1793948804,
+            "departure_utc": 1793948804,
+            "estimated": true
+         },
+         "period_start_utc": 1793948545,
+         "period_end_utc": 1793948804,
+         "count": 12,
+         "distance_km": 5.5,
+         "trip_uid": "jdy5vdz2nod8"
+      },
+      {
+         "seg_key": "m:kx33sfm3pvvt:rvyr36dbqqy6",
+         "route_id": 478,
+         "route_name": "Київ - Витячів - Обухів",
+         "occurrence": 1,
+         "from_stop": {
+            "id": 4824,
+            "name": "Трипілля",
+            "order": 10,
+            "arrival_utc": 1793948804,
+            "departure_utc": 1793948804,
+            "estimated": true
+         },
+         "to_stop": {
+            "id": 4826,
+            "name": "Витачів",
+            "order": 12,
+            "arrival_utc": 1793949233,
+            "departure_utc": 1793949233,
+            "estimated": true
+         },
+         "period_start_utc": 1793948804,
+         "period_end_utc": 1793949233,
+         "count": 9,
+         "distance_km": 9.1,
+         "trip_uid": "jdy5vdz2nod8"
+      },
+      {
+         "seg_key": "m:rvyr36dbqqy6:89ig6b8lrsjd",
+         "route_id": 478,
+         "route_name": "Київ - Витячів - Обухів",
+         "occurrence": 1,
+         "from_stop": {
+            "id": 4826,
+            "name": "Витачів",
+            "order": 12,
+            "arrival_utc": 1793949233,
+            "departure_utc": 1793949233,
+            "estimated": true
+         },
+         "to_stop": {
+            "id": 4826,
+            "name": "Витачів",
+            "order": 12,
+            "arrival_utc": 1793949346,
+            "departure_utc": 1793949346,
+            "estimated": true
+         },
+         "period_start_utc": 1793949233,
+         "period_end_utc": 1793949346,
+         "count": 9,
+         "distance_km": 2.4,
+         "trip_uid": "jdy5vdz2nod8"
+      },
+      {
+         "seg_key": "m:89ig6b8lrsjd:mxardlg0s4go",
+         "route_id": 478,
+         "route_name": "Київ - Витячів - Обухів",
+         "occurrence": 1,
+         "from_stop": {
+            "id": 4826,
+            "name": "Витачів",
+            "order": 12,
+            "arrival_utc": 1793949346,
+            "departure_utc": 1793949346,
+            "estimated": true
+         },
+         "to_stop": {
+            "id": 4826,
+            "name": "Витачів",
+            "order": 12,
+            "arrival_utc": 1793949600,
+            "departure_utc": 1793949600,
+            "estimated": true
+         },
+         "period_start_utc": 1793949346,
+         "period_end_utc": 1793949600,
+         "count": 8,
+         "distance_km": 5.39,
+         "trip_uid": "jdy5vdz2nod8"
+      },
+      {
+         "seg_key": "m:mxardlg0s4go:vdqivly6t46s",
+         "route_id": 478,
+         "route_name": "Київ - Витячів - Обухів",
+         "occurrence": 1,
+         "from_stop": {
+            "id": 4826,
+            "name": "Витачів",
+            "order": 12,
+            "arrival_utc": 1793949600,
+            "departure_utc": 1793949600,
+            "estimated": true
+         },
+         "to_stop": {
+            "id": 4823,
+            "name": "Українка",
+            "order": 9,
+            "arrival_utc": 1793949675,
+            "departure_utc": 1793949675,
+            "estimated": true
+         },
+         "period_start_utc": 1793949600,
+         "period_end_utc": 1793949675,
+         "count": 8,
+         "distance_km": 1.59,
+         "trip_uid": "jdy5vdz2nod8"
+      },
+      {
+         "seg_key": "m:vdqivly6t46s:ehmw1si9tpin",
+         "route_id": 478,
+         "route_name": "Київ - Витячів - Обухів",
+         "occurrence": 1,
+         "from_stop": {
+            "id": 4823,
+            "name": "Українка",
+            "order": 9,
+            "arrival_utc": 1793949675,
+            "departure_utc": 1793949675,
+            "estimated": true
+         },
+         "to_stop": {
+            "id": 4823,
+            "name": "Українка",
+            "order": 9,
+            "arrival_utc": 1793949887,
+            "departure_utc": 1793949887,
+            "estimated": true
+         },
+         "period_start_utc": 1793949675,
+         "period_end_utc": 1793949887,
+         "count": 8,
+         "distance_km": 4.5,
+         "trip_uid": "jdy5vdz2nod8"
+      },
+      {
+         "seg_key": "m:ehmw1si9tpin:5t3e4ju9ulvh",
+         "route_id": 478,
+         "route_name": "Київ - Витячів - Обухів",
+         "occurrence": 1,
+         "from_stop": {
+            "id": 4823,
+            "name": "Українка",
+            "order": 9,
+            "arrival_utc": 1793949887,
+            "departure_utc": 1793949887,
+            "estimated": true
+         },
+         "to_stop": {
+            "id": 4823,
+            "name": "Українка",
+            "order": 9,
+            "arrival_utc": 1793950066,
+            "departure_utc": 1793950066,
+            "estimated": true
+         },
+         "period_start_utc": 1793949887,
+         "period_end_utc": 1793950066,
+         "count": 8,
+         "distance_km": 3.8,
+         "trip_uid": "jdy5vdz2nod8"
+      },
+      {
+         "seg_key": "m:5t3e4ju9ulvh:itmcns5vyrqb",
+         "route_id": 478,
+         "route_name": "Київ - Витячів - Обухів",
+         "occurrence": 1,
+         "from_stop": {
+            "id": 4823,
+            "name": "Українка",
+            "order": 9,
+            "arrival_utc": 1793950066,
+            "departure_utc": 1793950066,
+            "estimated": true
+         },
+         "to_stop": {
+            "id": 4830,
+            "name": "Центр",
+            "order": 8,
+            "arrival_utc": 1793950465,
+            "departure_utc": 1793950465,
+            "estimated": false
+         },
+         "period_start_utc": 1793950066,
+         "period_end_utc": 1793950465,
+         "count": 1,
+         "distance_km": 8.47,
+         "trip_uid": "jdy5vdz2nod8"
+      }
+   ],
+   "route_periods": [
+      {
+         "route_id": 478,
+         "route_name": "Київ - Витячів - Обухів",
+         "start_utc": 1793946963,
+         "end_utc": 1793950465,
+         "occurrence": 1,
+         "trip_uid": "jdy5vdz2nod8"
+      }
+   ]
+}

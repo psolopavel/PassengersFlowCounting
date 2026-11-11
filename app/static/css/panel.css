@@ -1796,10 +1796,19 @@ button.session-comment-trigger.has-comment::after {
 
 .cm-edit {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 4px;
     margin: -2px 0 6px;
     padding: 0 2px;
+}
+
+.cm-edit select {
+    flex: 1;
+}
+
+.cm-edit select.cm-edit-route {
+    flex-basis: 100%;
 }
 
 .cm-hint {

@@ -133,6 +133,81 @@ def load_route_catalog(routes_db: Session, imei: str) -> list[dict]:
     return catalog
 
 
+CATALOG_WARNING_PREFIXES = ("Немає прив'язаних маршрутів", "Маршрут «")
+
+
+def catalog_warnings(catalog: list[dict]) -> list[str]:
+    """Попередження про маршрути знімка (усі починаються з CATALOG_WARNING_PREFIXES)."""
+    if not catalog:
+        return ["Немає прив'язаних маршрутів (all_car_routes)"]
+    out = []
+    for route in catalog:
+        if route.get("unbound"):
+            continue
+        if len(route.get("stops") or []) < 2:
+            out.append(f"Маршрут «{route['name']}»: менше двох зупинок — ходку по ньому не завершити")
+        elif route.get("length_km") is None:
+            out.append(
+                f"Маршрут «{route['name']}» без лінії на карті — зупинки розподіляються "
+                "рівномірно за порядком, кілометри не рахуються"
+            )
+    return out
+
+
+def _lacks_positions(route: dict) -> bool:
+    stops = route.get("stops") or []
+    return not stops or any(s.get("km") is None for s in stops)
+
+
+def sync_route_catalog(data: dict, fresh: list[dict]) -> dict:
+    """Звіряє знімок маршрутів сесії з поточними прив'язками машини.
+
+    Нові маршрути додаються, відв'язані без ходок прибираються, відв'язані з
+    ходками лишаються з unbound=True (ходки рахуються, але завершити підрахунок
+    не можна, доки маршрут ходки не змінять). Зупинки вже знятих маршрутів не
+    оновлюються (стабільність розрахунку) — крім знімків без позицій зупинок.
+    -> {"changed", "added": [назви], "removed": [назви], "unbound": [назви]}.
+    """
+    old = data.get("routes_catalog") or []
+    old_by_id = {r["id"]: r for r in old}
+    fresh_ids = {r["id"] for r in fresh}
+    used = {t.get("route_id") for t in data.get("chronology") or []}
+
+    merged: list[dict] = []
+    added: list[str] = []
+    for r in fresh:
+        prev = old_by_id.get(r["id"])
+        if prev is None:
+            added.append(r["name"])
+            merged.append(r)
+        elif _lacks_positions(prev) and not _lacks_positions(r):
+            merged.append(r)
+        else:
+            kept = {k: v for k, v in prev.items() if k != "unbound"}
+            kept["name"] = r["name"]
+            kept["inverse_route_id"] = r["inverse_route_id"]
+            merged.append(kept)
+    removed: list[str] = []
+    unbound: list[str] = []
+    for r in old:
+        if r["id"] in fresh_ids:
+            continue
+        if r["id"] in used:
+            unbound.append(r["name"])
+            merged.append({**r, "unbound": True, "inverse_route_id": None})
+        else:
+            removed.append(r["name"])
+
+    changed = json.dumps(merged, sort_keys=True) != json.dumps(old, sort_keys=True)
+    if changed:
+        data["routes_catalog"] = merged
+        data["warnings"] = [
+            w for w in data.get("warnings") or []
+            if not str(w).startswith(CATALOG_WARNING_PREFIXES)
+        ] + catalog_warnings(merged)
+    return {"changed": changed, "added": added, "removed": removed, "unbound": unbound}
+
+
 def route_stop_positions(route: dict | None) -> list[dict]:
     """Зупинки маршруту з позицією pos (км; без геометрії — номер), за pos."""
     stops = list((route or {}).get("stops") or [])
@@ -377,9 +452,9 @@ def validate_for_ready(data: dict | None, max_people: int) -> list[dict]:
         name = trip.get("route_name") or f"Маршрут {trip['route_id']}"
         marks = trip.get("marks") or []
         route = routes.get(trip["route_id"])
-        if route is None:
-            err(f"Маршрут «{name}» більше не прив'язаний до машини — видаліть ходку "
-                "або оновіть маршрути.", trip)
+        if route is None or route.get("unbound"):
+            err(f"Маршрут «{name}» більше не прив'язаний до машини — змініть маршрут ходки "
+                "або видаліть її.", trip, marks[0] if marks else None)
             continue
         if len(marks) < 2:
             err(f"Ходка «{name}»: потрібні щонайменше початок і кінець.", trip)

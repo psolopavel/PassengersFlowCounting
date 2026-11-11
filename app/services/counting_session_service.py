@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 from app.models import CountingSession
 from app.services import counting_build_service
 from app.services import manual_chronology_service as manual_svc
+from app.utils.debug_log import debug_log
 
 # Допуск сдвига границ отрезка (сек) для переноса count при скиданні.
 _SEG_TIME_TOL = 60
@@ -387,6 +388,41 @@ def save_manual_chronology(
         )
     data = _preserve_session_flags(session, data)
     return save_progress(db, session, data=data, add_time_sec=add_time_sec)
+
+
+def sync_manual_routes(
+    db: Session, routes_db: Session, session: CountingSession, car
+) -> list[str]:
+    """Звіряє маршрути ручної хронології з all_car_routes при відкритті панелі.
+
+    Хронологія зберігається; змінений знімок маршрутів записується одразу.
+    -> повідомлення для рахувальника (порожньо — нічого не змінилось).
+    """
+    data = load_data(session)
+    if not manual_svc.is_manual(data):
+        return []
+    try:
+        fresh = manual_svc.load_route_catalog(routes_db, car.imei)
+    except Exception as exc:
+        debug_log("sync_manual_routes: load failed", tag="intercity",
+                  data={"imei": car.imei, "error": str(exc)})
+        return []
+    diff = manual_svc.sync_route_catalog(data, fresh)
+    if not diff["changed"]:
+        return []
+    data = manual_svc.apply_chronology(
+        data, manual_svc.sanitize_chronology(data.get("chronology") or [])
+    )
+    save_progress(db, session, data=data)
+    notices = []
+    if diff["added"]:
+        notices.append("Додано маршрути: " + ", ".join(diff["added"]))
+    if diff["removed"]:
+        notices.append("Прибрано відв'язані маршрути: " + ", ".join(diff["removed"]))
+    if diff["unbound"]:
+        notices.append("Відв'язано від машини, але є ходки — змініть їм маршрут: "
+                       + ", ".join(diff["unbound"]))
+    return notices
 
 
 def intercity_unfilled(data: dict | None) -> list[str]:

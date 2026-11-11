@@ -22,8 +22,11 @@ const $ = (id) => document.getElementById(id);
 
 const readOnly = !!cfg.readOnly;
 const maxPeople = Number(cfg.maxPeopleCountInCar) || 100;
-const routes = cfg.routesCatalog || [];
-const routeById = new Map(routes.map((r) => [r.id, r]));
+const catalog = cfg.routesCatalog || [];
+const routeById = new Map(catalog.map((r) => [r.id, r]));
+// Відв'язані від машини маршрути лишаються в каталозі лише заради наявних ходок.
+const routes = catalog.filter((r) => !r.unbound);
+const isUnbound = (routeId) => !!(routeById.get(routeId) || {}).unbound;
 const TICK_MS = 300;
 
 let trips = (cfg.chronology || []).map((t) => ({
@@ -253,7 +256,11 @@ function showWholeDay() {
     render();
 }
 
-function select(tripUid, markUid, { focusCount = false, seekUtc = null } = {}) {
+/**
+ * Вибір відмітки. Фокус на поле кількості не переводиться (сторінка не стрибає
+ * вниз) — цифри ловить глобальний обробник; якщо поле вже у фокусі, текст виділяється.
+ */
+function select(tripUid, markUid, { seekUtc = null } = {}) {
     syncCountInput();
     sel = tripUid && markUid ? { tripUid, markUid } : null;
     externalDigitEntry = false;
@@ -269,9 +276,10 @@ function select(tripUid, markUid, { focusCount = false, seekUtc = null } = {}) {
         applyWindow(seekUtc);
     }
     render();
-    if (focusCount && !$("cmCount").disabled) {
-        $("cmCount").focus();
-        $("cmCount").select();
+    const input = $("cmCount");
+    if (document.activeElement === input) {
+        if (input.disabled) input.blur();
+        else input.select();
     }
 }
 
@@ -295,14 +303,13 @@ function navStep(dir) {
     if (pos < 0) pos = dir > 0 ? -1 : list.length;
     const next = pos + dir;
     if (next < 0) return;
-    const focusCount = document.activeElement === $("cmCount");
     if (next >= list.length) {
         renderSidebar();
         $("ccSaveState").textContent = "Це останній відрізок.";
         $("ccSave")?.focus();
         return;
     }
-    select(list[next].tripUid, list[next].markUid, { focusCount });
+    select(list[next].tripUid, list[next].markUid);
 }
 
 // ── дії ──────────────────────────────────────────────────────────────
@@ -340,7 +347,7 @@ function startTrip(routeId, stopId, utc) {
     };
     trips.push(trip);
     changed();
-    select(trip.uid, mark.uid, { focusCount: true });
+    select(trip.uid, mark.uid);
     return trip;
 }
 
@@ -350,7 +357,7 @@ function addStop(trip, utc) {
     const mark = makeMark(utc);
     trip.marks.push(mark);
     changed();
-    select(trip.uid, mark.uid, { focusCount: true });
+    select(trip.uid, mark.uid);
     return mark;
 }
 
@@ -391,7 +398,7 @@ function reopenTrip(trip) {
     trip.end_stop_id = null;
     changed();
     const last = trip.marks[trip.marks.length - 1];
-    if (last) select(trip.uid, last.uid, { focusCount: true });
+    if (last) select(trip.uid, last.uid);
     return trip;
 }
 
@@ -443,6 +450,16 @@ function setSelectedTime() {
 function setTripStop(trip, field, stopId) {
     if (!stopId) return;
     trip[field] = stopId;
+    changed();
+}
+
+/** Інший маршрут ходки: зупинки, яких у ньому немає, — на його першу / останню. */
+function setTripRoute(trip, routeId) {
+    if (!routeById.has(routeId) || routeId === trip.route_id) return;
+    trip.route_id = routeId;
+    trip.route_name = routeName(routeId);
+    if (!hasStop(routeId, trip.start_stop_id)) trip.start_stop_id = firstStopId(routeId);
+    if (trip.closed && !hasStop(routeId, trip.end_stop_id)) trip.end_stop_id = lastStopId(routeId);
     changed();
 }
 
@@ -718,6 +735,19 @@ function markEditRow(trip, idx) {
     row.className = "cm-edit";
     const isFirst = idx === 0;
     const isEnd = trip.closed && idx === trip.marks.length - 1;
+    if (isFirst) {
+        const routeSel = document.createElement("select");
+        routeSel.className = "cm-edit-route";
+        routeSel.title = "Маршрут ходки";
+        routeSel.setAttribute("aria-label", "Маршрут ходки");
+        const choices = isUnbound(trip.route_id) ? [routeById.get(trip.route_id), ...routes] : routes;
+        routeSel.innerHTML = choices
+            .map((r) => optionHtml(r, r.unbound ? `⚠ ${r.name} (відв'язаний)` : r.name))
+            .join("");
+        routeSel.value = String(trip.route_id);
+        routeSel.addEventListener("change", () => setTripRoute(trip, Number(routeSel.value)));
+        row.appendChild(routeSel);
+    }
     if (isFirst || isEnd) {
         const field = isFirst ? "start_stop_id" : "end_stop_id";
         const label = isFirst ? "Початкова зупинка ходки" : "Кінцева зупинка ходки";
@@ -770,12 +800,19 @@ function renderSidebar() {
         const total = segs.filter((s) => s.to).length;
         const labels = markLabels(trip);
         const unresolved = trip.closed && !resolveTrip(trip);
-        const meta = !trip.closed ? "триває" : unresolved ? "⚠ зупинки" : `${done}/${total}`;
+        let meta = !trip.closed ? "триває" : `${done}/${total}`;
+        let metaTitle = "";
+        if (isUnbound(trip.route_id)) {
+            meta = "⚠ маршрут";
+            metaTitle = "Маршрут більше не прив'язаний до машини — змініть маршрут ходки (клік на перший відрізок)";
+        } else if (unresolved) {
+            meta = "⚠ зупинки";
+            metaTitle = "Кінцева зупинка має бути далі за маршрутом, ніж початкова";
+        }
         head.innerHTML =
             `<span class="cc-trip-name">${escapeHtml(routeName(trip.route_id, trip.route_name))}`
             + ` · ходка #${occ.get(trip.uid) || "?"}</span>`
-            + `<span class="cc-trip-meta"${unresolved
-                ? ' title="Кінцева зупинка має бути далі за маршрутом, ніж початкова"' : ""}>${meta}</span>`;
+            + `<span class="cc-trip-meta"${metaTitle ? ` title="${escapeHtml(metaTitle)}"` : ""}>${meta}</span>`;
         if (!readOnly) {
             const tools = document.createElement("span");
             tools.className = "cm-trip-tools";
@@ -805,7 +842,7 @@ function renderSidebar() {
                 + `<span class="cc-seg-time">${clockHm(seg.from.utc)} – ${t1}</span>`
                 + `<span class="cc-seg-count">${count}</span>`
                 + `</span>`;
-            btn.addEventListener("click", () => select(trip.uid, seg.from.uid, { focusCount: !readOnly }));
+            btn.addEventListener("click", () => select(trip.uid, seg.from.uid));
             tripEl.appendChild(btn);
             if (active && !readOnly) tripEl.appendChild(markEditRow(trip, idx));
         }
@@ -826,8 +863,14 @@ function renderSidebar() {
         body.appendChild(tripEl);
     }
 
+    // Прокручуємо лише список (scrollIntoView зсунув би й саму сторінку).
     const active = body.querySelector(".is-active");
-    if (active) active.scrollIntoView({ block: "nearest" });
+    if (active) {
+        const b = body.getBoundingClientRect();
+        const a = active.getBoundingClientRect();
+        if (a.top < b.top) body.scrollTop -= b.top - a.top;
+        else if (a.bottom > b.bottom) body.scrollTop += a.bottom - b.bottom;
+    }
 }
 
 function renderCount() {
@@ -835,6 +878,8 @@ function renderCount() {
     const input = $("cmCount");
     input.disabled = readOnly || !seg;
     input.value = seg && segmentFilled(seg) ? String(seg.from.count_after) : "";
+    // Підсвітка: цифри з клавіатури підуть сюди навіть без фокуса.
+    input.classList.toggle("is-active-field", !input.disabled);
 }
 
 // ── графік: ходки і зупинки ──────────────────────────────────────────

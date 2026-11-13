@@ -62,6 +62,8 @@ const STALL_TIMEOUT_MS = 1500;
 const END_EPS = 0.25;
 const MIN_VIEW_SEC = 60;
 const ZOOM_STEP = 1.25;
+/** Переміщення менше — клік по часу, більше — pan графіка. */
+const CANVAS_PAN_SLOP_PX = 4;
 const AUTOSAVE_MS = 10000;
 const ASPECT = { portrait: 9 / 16, landscape: 16 / 9 };
 
@@ -200,6 +202,8 @@ export class MultiCamPlayer {
         this.SPEED_H = 90;
         this.LANE_H = 22;
         this.LANE_GAP = 4;
+        /** @type {{ x: number, viewStart: number, viewEnd: number, moved: boolean }|null} */
+        this._canvasPan = null;
     }
 
     // Чи показує хоч одна камера відео в поточному кадрі.
@@ -774,11 +778,59 @@ export class MultiCamPlayer {
         this.ctx.restore();
     }
 
-    onCanvasClick(ev) {
+    /** Видимий діапазон графіка [viewStart, viewEnd] в межах вікна дня. */
+    setViewRange(ns, ne) {
+        const span = ne - ns;
+        if (span <= 0) return;
+        if (ns < this.winStart) { ns = this.winStart; ne = ns + span; }
+        if (ne > this.winEnd) { ne = this.winEnd; ns = ne - span; }
+        if (ns < this.winStart) ns = this.winStart;
+        this.viewStart = ns;
+        this.viewEnd = ne;
+        this.buildGraphStatic();
+        this.drawPlayhead();
+    }
+
+    seekAtClientX(clientX) {
         const rect = this.canvas.getBoundingClientRect();
-        const x = ev.clientX - rect.left;
-        const utc = this.viewStart + (x / this.cssW) * (this.viewEnd - this.viewStart);
+        const x = clamp(clientX - rect.left, 0, this.cssW || 1);
+        const span = this.viewEnd - this.viewStart;
+        const utc = this.viewStart + (x / (this.cssW || 1)) * span;
         this.seekTo(utc - this.winStart);
+    }
+
+    onCanvasPointerDown(ev) {
+        if (!this.canvas || ev.button !== 0) return;
+        this._canvasPan = {
+            x: ev.clientX,
+            viewStart: this.viewStart,
+            viewEnd: this.viewEnd,
+            moved: false,
+        };
+        this.canvas.setPointerCapture(ev.pointerId);
+        this.canvas.classList.add("is-panning");
+    }
+
+    onCanvasPointerMove(ev) {
+        const pan = this._canvasPan;
+        if (!pan || !this.canvas) return;
+        const dx = ev.clientX - pan.x;
+        if (!pan.moved && Math.abs(dx) < CANVAS_PAN_SLOP_PX) return;
+        pan.moved = true;
+        const span = pan.viewEnd - pan.viewStart;
+        const w = this.cssW || 1;
+        const deltaSec = -(dx / w) * span;
+        this.setViewRange(pan.viewStart + deltaSec, pan.viewEnd + deltaSec);
+    }
+
+    endCanvasPan(ev, seekIfClick) {
+        const pan = this._canvasPan;
+        if (!pan || !this.canvas) return;
+        const moved = pan.moved;
+        this._canvasPan = null;
+        try { this.canvas.releasePointerCapture(ev.pointerId); } catch (_) { /* вже відпущено */ }
+        this.canvas.classList.remove("is-panning");
+        if (seekIfClick && !moved) this.seekAtClientX(ev.clientX);
     }
 
     onCanvasWheel(ev) {
@@ -790,14 +842,8 @@ export class MultiCamPlayer {
         const factor = ev.deltaY < 0 ? 1 / ZOOM_STEP : ZOOM_STEP;
         const newSpan = clamp(span * factor, MIN_VIEW_SEC, this.durSec);
         const frac = (utcAt - this.viewStart) / span;
-        let ns = utcAt - frac * newSpan;
-        let ne = ns + newSpan;
-        if (ns < this.winStart) { ns = this.winStart; ne = ns + newSpan; }
-        if (ne > this.winEnd) { ne = this.winEnd; ns = ne - newSpan; }
-        if (ns < this.winStart) ns = this.winStart;
-        this.viewStart = ns; this.viewEnd = ne;
-        this.buildGraphStatic();
-        this.drawPlayhead();
+        const ns = utcAt - frac * newSpan;
+        this.setViewRange(ns, ns + newSpan);
     }
 
     // ── time_spent + автозбереження ──────────────────────────────────
@@ -873,11 +919,9 @@ export class MultiCamPlayer {
         $("ccRateUp")?.addEventListener("click", () => this.stepRate(+1));
         $("ccRateDown")?.addEventListener("click", () => this.stepRate(-1));
         $("ccSeek")?.addEventListener("input", (e) => this.seekTo(parseInt(e.target.value, 10) || 0));
-        $("ccSeek")?.addEventListener("keydown", (e) => {
-            if (e.code !== "Space" || e.repeat) return;
-            e.preventDefault();
-            this.toggle();
-        });
+        // Після перемотки фокус не лишається на повзунку, щоб стрілки й інші клавіші керували плеєром.
+        $("ccSeek")?.addEventListener("change", (e) => e.target.blur());
+        $("ccSeek")?.addEventListener("pointerup", (e) => e.target.blur());
         $("ccShowGraph")?.addEventListener("change", (e) => {
             const graphs = $("ccGraphs");
             if (!graphs) return;
@@ -885,12 +929,16 @@ export class MultiCamPlayer {
             if (e.target.checked) this.resizeCanvas();
         });
         if (this.canvas) {
-            this.canvas.addEventListener("click", (ev) => this.onCanvasClick(ev));
+            this.canvas.addEventListener("pointerdown", (ev) => this.onCanvasPointerDown(ev));
+            this.canvas.addEventListener("pointermove", (ev) => this.onCanvasPointerMove(ev));
+            this.canvas.addEventListener("pointerup", (ev) => this.endCanvasPan(ev, true));
+            this.canvas.addEventListener("pointercancel", (ev) => this.endCanvasPan(ev, false));
             this.canvas.addEventListener("wheel", (ev) => this.onCanvasWheel(ev), { passive: false });
         }
         window.addEventListener("resize", () => this.resizeCanvas());
         window.addEventListener("keydown", (e) => {
-            if (["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName)) return;
+            const el = document.activeElement;
+            if (["INPUT", "SELECT", "TEXTAREA"].includes(el.tagName) && el.type !== "range") return;
             if (e.code === "Space") { e.preventDefault(); this.toggle(); }
             else if (e.code === "ArrowLeft") { e.preventDefault(); this.seekBy(-1); }
             else if (e.code === "ArrowRight") { e.preventDefault(); this.seekBy(1); }

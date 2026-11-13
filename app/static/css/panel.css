@@ -1337,6 +1337,11 @@ button.session-comment-trigger.has-comment::after {
     width: 100%;
     display: block;
     cursor: crosshair;
+    touch-action: none;
+}
+
+.cc-graphs canvas.is-panning {
+    cursor: grabbing;
 }
 
 /* футер */

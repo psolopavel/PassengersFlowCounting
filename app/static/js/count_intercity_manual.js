@@ -1002,7 +1002,7 @@ const isPlusKey = (e) => e.key === "+" || e.code === "NumpadAdd";
 function hotkeysAllowed() {
     const el = document.activeElement;
     if (!el || el === document.body) return true;
-    if (el === $("cmCount")) return true;
+    if (el === $("cmCount") || el.type === "range") return true;
     if ($("cmComposer")?.contains(el)) return false;
     if (["INPUT", "SELECT", "TEXTAREA"].includes(el.tagName) || el.isContentEditable) return false;
     // Кнопки-картки відрізків — так; інші кнопки (Зберегти, ✕ …) обробляють Enter самі.

@@ -228,6 +228,15 @@ const lastStopId = (routeId) => (stopsOf(routeId).slice(-1)[0] || {}).id ?? null
 
 // ── вікно плеєра ─────────────────────────────────────────────────────
 
+function playerWindowOpts(playUtc) {
+    return {
+        preserveView: true,
+        playheadUtc: playUtc,
+        anchorUtc: playUtc,
+        anchorEdge: "left",
+    };
+}
+
 function applyWindow(seekUtc = null) {
     const day = dayWindow();
     if (!day.start || !day.end) return;
@@ -244,8 +253,8 @@ function applyWindow(seekUtc = null) {
         if (lastEnd && lastEnd < day.end - 60 && !openTrip()) start = lastEnd;
     }
     if (end - start < 1) end = start + 1;
-    player.setWindow(start, end);
-    if (seekUtc !== null) player.seekTo(seekUtc - start);
+    const playUtc = seekUtc !== null ? seekUtc : (player.winStart + player.master);
+    player.setWindow(start, end, playerWindowOpts(playUtc));
 }
 
 function showWholeDay() {
@@ -269,8 +278,7 @@ function select(tripUid, markUid, { seekUtc = null } = {}) {
         // Кінцева відмітка — весь день, плеєр на ній.
         const day = dayWindow();
         if (day.start && day.end) {
-            player.setWindow(day.start, day.end);
-            player.seekTo(s.mark.utc - day.start);
+            player.setWindow(day.start, day.end, playerWindowOpts(s.mark.utc));
         }
     } else {
         applyWindow(seekUtc);

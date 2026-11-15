@@ -204,6 +204,8 @@ export class MultiCamPlayer {
         this.LANE_GAP = 4;
         /** @type {{ x: number, viewStart: number, viewEnd: number, moved: boolean }|null} */
         this._canvasPan = null;
+        /** Графік зсувається за червоною міткою під час відтворення. */
+        this.followPlayhead = false;
     }
 
     // Чи показує хоч одна камера відео в поточному кадрі.
@@ -253,15 +255,33 @@ export class MultiCamPlayer {
         return true;
     }
 
-    setWindow(startUtc, endUtc) {
+    /**
+     * @param {object} [opts]
+     * @param {boolean} [opts.preserveView] — не скидати масштаб графіка
+     * @param {number} [opts.playheadUtc] — абсолютний час плеєра після зміни вікна
+     * @param {number} [opts.anchorUtc] — до чого прижати видимий діапазон
+     * @param {'left'|'center'} [opts.anchorEdge]
+     */
+    setWindow(startUtc, endUtc, opts = {}) {
+        const prevSpan = Math.max(0, this.viewEnd - this.viewStart);
+        const playUtc = opts.playheadUtc ?? (this.winStart + this.master);
+
         this.winStart = startUtc;
         this.winEnd = endUtc;
         this.durSec = Math.max(1, endUtc - startUtc);
-        this.viewStart = startUtc;
-        this.viewEnd = endUtc;
+        this.master = clamp(playUtc - startUtc, 0, this.durSec);
         this.pause();
-        this.master = 0;
         this.lastTs = 0;
+
+        if (opts.preserveView && prevSpan > 0) {
+            const span = clamp(prevSpan, MIN_VIEW_SEC, this.durSec);
+            const anchor = opts.anchorUtc ?? playUtc;
+            this._clampViewAround(anchor, span, opts.anchorEdge || "left");
+        } else {
+            this.viewStart = startUtc;
+            this.viewEnd = endUtc;
+        }
+
         const durEl = $("ccDur");
         if (durEl) durEl.textContent = clock(endUtc);
         const seek = $("ccSeek");
@@ -270,7 +290,56 @@ export class MultiCamPlayer {
             this.syncAll(true);
             this.updateTimeUI();
             this.resizeCanvas();
+            this.buildGraphStatic();
+            this.drawPlayhead();
         }
+    }
+
+    /** Видимий діапазон довжиною span навколо utc (лівий край або центр). */
+    _clampViewAround(utc, span, edge = "left") {
+        let ns;
+        let ne;
+        if (edge === "center") {
+            ns = utc - span / 2;
+            ne = utc + span / 2;
+        } else {
+            ns = utc;
+            ne = utc + span;
+        }
+        if (ns < this.winStart) { ns = this.winStart; ne = ns + span; }
+        if (ne > this.winEnd) { ne = this.winEnd; ns = ne - span; }
+        if (ns < this.winStart) ns = this.winStart;
+        this.viewStart = ns;
+        this.viewEnd = ne;
+    }
+
+    disableFollowPlayhead() {
+        if (!this.followPlayhead) return;
+        this.followPlayhead = false;
+        this._updateFollowUI();
+    }
+
+    toggleFollowPlayhead() {
+        this.followPlayhead = !this.followPlayhead;
+        this._updateFollowUI();
+        if (this.followPlayhead) this.syncViewToPlayhead(true);
+    }
+
+    _updateFollowUI() {
+        const btn = $("ccFollow");
+        if (!btn) return;
+        btn.classList.toggle("is-active", this.followPlayhead);
+        btn.setAttribute("aria-pressed", this.followPlayhead ? "true" : "false");
+    }
+
+    /** Під час «Слідкувати»: червона мітка у лівій частині видимого діапазону. */
+    syncViewToPlayhead(force = false) {
+        if (!this.followPlayhead) return;
+        const utc = this.winStart + this.master;
+        const span = clamp(this.viewEnd - this.viewStart, MIN_VIEW_SEC, this.durSec);
+        const targetStart = clamp(utc, this.winStart, Math.max(this.winStart, this.winEnd - span));
+        if (!force && Math.abs(targetStart - this.viewStart) < 0.2) return;
+        this.setViewRange(targetStart, targetStart + span);
     }
 
     mount() {
@@ -586,6 +655,7 @@ export class MultiCamPlayer {
         if (this.playing && this.master >= this.durSec) this.pause();
 
         this.updateTimeUI();
+        if (this.followPlayhead && this.playing) this.syncViewToPlayhead();
         this.drawPlayhead();
         this.raf = requestAnimationFrame((t) => this.loop(t));
     }
@@ -631,6 +701,7 @@ export class MultiCamPlayer {
         this.master = clamp(sec, 0, this.durSec);
         this.syncAll(true);
         this.updateTimeUI();
+        if (this.followPlayhead) this.syncViewToPlayhead(true);
         this.drawPlayhead();
     }
 
@@ -817,6 +888,7 @@ export class MultiCamPlayer {
         const dx = ev.clientX - pan.x;
         if (!pan.moved && Math.abs(dx) < CANVAS_PAN_SLOP_PX) return;
         pan.moved = true;
+        this.disableFollowPlayhead();
         const span = pan.viewEnd - pan.viewStart;
         const w = this.cssW || 1;
         const deltaSec = -(dx / w) * span;
@@ -835,6 +907,7 @@ export class MultiCamPlayer {
 
     onCanvasWheel(ev) {
         ev.preventDefault();
+        this.disableFollowPlayhead();
         const rect = this.canvas.getBoundingClientRect();
         const x = clamp(ev.clientX - rect.left, 0, this.cssW || 1);
         const span = this.viewEnd - this.viewStart;
@@ -918,6 +991,9 @@ export class MultiCamPlayer {
         $("ccFwd")?.addEventListener("click", () => this.seekBy(1));
         $("ccRateUp")?.addEventListener("click", () => this.stepRate(+1));
         $("ccRateDown")?.addEventListener("click", () => this.stepRate(-1));
+        $("ccFollow")?.addEventListener("click", () => this.toggleFollowPlayhead());
+        this._updateFollowUI();
+        $("ccSeek")?.addEventListener("pointerdown", () => this.disableFollowPlayhead());
         $("ccSeek")?.addEventListener("input", (e) => this.seekTo(parseInt(e.target.value, 10) || 0));
         // Після перемотки фокус не лишається на повзунку, щоб стрілки й інші клавіші керували плеєром.
         $("ccSeek")?.addEventListener("change", (e) => e.target.blur());

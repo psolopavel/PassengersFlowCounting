@@ -247,7 +247,15 @@ function selectSegment(idx, field = "entered") {
     current = idx;
     externalDigitEntry = false;
     const seg = segments[current];
-    player.setWindow(seg.period_start_utc, seg.period_end_utc);
+    const prevUtc = player.winStart + player.master;
+    const playUtc = (prevUtc >= seg.period_start_utc && prevUtc <= seg.period_end_utc)
+        ? prevUtc : seg.period_start_utc;
+    player.setWindow(seg.period_start_utc, seg.period_end_utc, {
+        preserveView: true,
+        playheadUtc: playUtc,
+        anchorUtc: playUtc,
+        anchorEdge: "left",
+    });
     if (isFinalStop) {
         $("ccEntered").value = (seg.entered !== null && seg.entered !== undefined) ? String(seg.entered) : "";
         $("ccExited").value = (seg.exited !== null && seg.exited !== undefined) ? String(seg.exited) : "";

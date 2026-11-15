@@ -1287,6 +1287,12 @@ button.session-comment-trigger.has-comment::after {
     gap: 6px;
 }
 
+.cc-follow-btn.is-active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
 .cc-rate span {
     min-width: 40px;
     text-align: center;

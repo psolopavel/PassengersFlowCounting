@@ -14,7 +14,10 @@
     routes_catalog  — знімок прив'язаних маршрутів: [{id, name, inverse_route_id,
                         length_km, stops: [{id, name, order, km}]}], зупинки за km;
     chronology      — ввід рахувальника: [{uid, route_id, route_name, closed,
-                        start_stop_id, end_stop_id, marks: [{uid, utc, count_after}]}];
+                        start_stop_id, end_stop_id, route_check_ok,
+                        marks: [{uid, utc, count_after}]}]; route_check_ok —
+                        маршрут, який рахувальник залишив попри підказку
+                        перевірки за треком (route_check_service);
     segments, route_periods — виводяться з chronology (лише завершені ходки) у
                         тому ж форматі, що й в автоматичному режимі, тому FIFO,
                         зведення, звіти та API працюють без змін.
@@ -294,6 +297,7 @@ def sanitize_chronology(raw) -> list[dict]:
             "closed": closed,
             "start_stop_id": start_stop_id,
             "end_stop_id": end_stop_id,
+            "route_check_ok": _int(t.get("route_check_ok")),
             "marks": marks,
         })
     return trips

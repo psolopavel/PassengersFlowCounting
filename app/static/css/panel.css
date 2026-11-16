@@ -1805,6 +1805,24 @@ button.session-comment-trigger.has-comment::after {
     display: none;
 }
 
+.cm-route-check {
+    margin: 0 0 6px;
+    padding: 6px 8px;
+    border: 1px solid var(--warning);
+    border-radius: 6px;
+    background: rgba(245, 158, 11, 0.12);
+    color: var(--warning);
+    font-size: 0.8rem;
+    line-height: 1.35;
+}
+
+.cm-route-check-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+}
+
 .cm-edit {
     display: flex;
     flex-wrap: wrap;

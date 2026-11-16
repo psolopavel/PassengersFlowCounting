@@ -7,7 +7,7 @@
 import json
 from datetime import date, datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Body, Depends, Form, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from starlette.status import HTTP_303_SEE_OTHER
@@ -20,6 +20,7 @@ from app.services import counting_build_service
 from app.services import counting_session_service as css
 from app.services import manual_chronology_service as manual_svc
 from app.services import panel_service as svc
+from app.services import route_check_service
 from app.services import routes_viewer_service
 from app.services import summary_service
 from app.services.counting_session_service import count_type_for_panel
@@ -233,6 +234,7 @@ def count_view(
             config["mode"] = manual_svc.MODE_MANUAL
             config["maxPeopleCountInCar"] = car_svc.max_people_for_car(car)
             config["saveUrl"] = f"/panel/count/{car.id}/intercity-save"
+            config["routeCheckUrl"] = f"/panel/count/{car.id}/route-check"
             config["routesCatalog"] = data.get("routes_catalog") or []
             config["chronology"] = manual_svc.sanitize_chronology(data.get("chronology") or [])
             return render(
@@ -799,6 +801,45 @@ def count_ready(
     if user.is_manager and counter_id:
         url += f"&counter_id={target_id}"
     return RedirectResponse(url, status_code=HTTP_303_SEE_OTHER)
+
+
+@router.post("/count/{car_id}/route-check")
+def count_route_check(
+    car_id: int,
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    gps_db: Session = Depends(get_gps_db),
+    routes_db: Session = Depends(get_routes_db),
+    user: User = Depends(require_panel_access),
+):
+    """Перевірка маршруту завершеної ручної ходки за GPS-треком (нічого не змінює).
+
+    JSON {day, counter_id?, panelType?, route_id, start_utc, end_utc}.
+    """
+    ref_day = _parse_day(body.get("day", "")) or _today_local()
+    target_id = _target_counter_id(user, body.get("counter_id"))
+    count_type = count_type_for_panel(body.get("panelType") or "whole_day")
+    session = css.get_session(db, target_id, car_id, ref_day, count_type=count_type)
+    if session is None:
+        return JSONResponse({"ok": False, "error": "session_not_found"}, status_code=404)
+    data = css.load_data(session)
+    if not manual_svc.is_manual(data):
+        return JSONResponse({"ok": False, "error": "not_manual"}, status_code=400)
+    try:
+        route_id = int(body.get("route_id"))
+        start_utc = int(body.get("start_utc"))
+        end_utc = int(body.get("end_utc"))
+    except (TypeError, ValueError):
+        return JSONResponse({"ok": False, "error": "bad_request"}, status_code=400)
+    if not 0 < end_utc - start_utc <= 86400:
+        return JSONResponse({"ok": False, "error": "bad_interval"}, status_code=400)
+
+    car = db.get(Car, car_id)
+    result = route_check_service.check_trip_route(
+        gps_db, routes_db, car.imei, data.get("routes_catalog") or [],
+        route_id, start_utc, end_utc,
+    )
+    return JSONResponse({"ok": True, **result})
 
 
 @router.post("/count/{car_id}/save")

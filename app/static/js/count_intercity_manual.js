@@ -4,7 +4,7 @@
  * а кількість людей вводить на кожен відрізок.
  *
  * Стан — chronology: [{uid, route_id, route_name, closed, start_stop_id,
- * end_stop_id, marks: [{uid, utc, count_after}]}]. Відрізок = пара сусідніх
+ * end_stop_id, route_check_ok, marks: [{uid, utc, count_after}]}]. Відрізок = пара сусідніх
  * відміток ходки, його кількість — count_after першої з них. Реальні зупинки
  * проміжних відміток обчислюються за часом (resolveTrip — та сама логіка, що
  * й manual_chronology_service.resolve_trip на сервері).
@@ -36,6 +36,7 @@ let trips = (cfg.chronology || []).map((t) => ({
     closed: !!t.closed,
     start_stop_id: t.start_stop_id ?? null,
     end_stop_id: t.closed ? (t.end_stop_id ?? null) : null,
+    route_check_ok: t.route_check_ok ?? null,
     marks: (t.marks || []).map((m) => ({
         uid: m.uid || newUid(),
         utc: m.utc,
@@ -333,6 +334,7 @@ function changed() {
     sortTrips();
     $("ccSaveState").textContent = "";
     render();
+    scheduleRouteChecks();
 }
 
 function makeMark(utc) {
@@ -351,7 +353,7 @@ function startTrip(routeId, stopId, utc) {
     const mark = makeMark(utc);
     const trip = {
         uid: newUid(), route_id: routeId, route_name: routeName(routeId), closed: false,
-        start_stop_id: stopId, end_stop_id: null, marks: [mark],
+        start_stop_id: stopId, end_stop_id: null, route_check_ok: null, marks: [mark],
     };
     trips.push(trip);
     changed();
@@ -469,6 +471,122 @@ function setTripRoute(trip, routeId) {
     if (!hasStop(routeId, trip.start_stop_id)) trip.start_stop_id = firstStopId(routeId);
     if (trip.closed && !hasStop(routeId, trip.end_stop_id)) trip.end_stop_id = lastStopId(routeId);
     changed();
+}
+
+// ── перевірка маршруту завершеної ходки за GPS-треком ───────────────
+
+// trip.uid -> { key, result }; key — маршрут і час ходки, для яких рахувався result.
+const routeChecks = new Map();
+let routeCheckTimer = null;
+let routeCheckRun = null;
+
+const routeCheckKey = (t) => `${t.route_id}:${tripStart(t)}:${tripEnd(t)}`;
+const needsRouteCheck = (t) => t.closed && t.marks.length >= 2
+    && (routeChecks.get(t.uid) || {}).key !== routeCheckKey(t);
+
+function scheduleRouteChecks() {
+    if (!cfg.routeCheckUrl) return;
+    clearTimeout(routeCheckTimer);
+    routeCheckTimer = setTimeout(runRouteChecks, 800);
+}
+
+/** Перевіряє по черзі всі завершені ходки, у яких змінились маршрут або час. */
+function runRouteChecks() {
+    if (!cfg.routeCheckUrl) return Promise.resolve();
+    if (!routeCheckRun) {
+        routeCheckRun = (async () => {
+            for (let trip = trips.find(needsRouteCheck); trip; trip = trips.find(needsRouteCheck)) {
+                const key = routeCheckKey(trip);
+                const result = await fetchRouteCheck(trip);
+                routeChecks.set(trip.uid, { key, result });
+                renderSidebar();
+            }
+        })().finally(() => { routeCheckRun = null; });
+    }
+    return routeCheckRun;
+}
+
+async function fetchRouteCheck(trip) {
+    try {
+        const resp = await fetch(cfg.routeCheckUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                day: cfg.dayIso,
+                counter_id: cfg.counterId,
+                panelType: cfg.panelType || "whole_day",
+                route_id: trip.route_id,
+                start_utc: tripStart(trip),
+                end_utc: tripEnd(trip),
+            }),
+        });
+        const j = await resp.json();
+        return resp.ok && j.ok ? j : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+/** Актуальне попередження перевірки для ходки або null (маршрут підтверджено чи залишено). */
+function routeWarning(trip) {
+    if (!trip.closed) return null;
+    const entry = routeChecks.get(trip.uid);
+    if (!entry || !entry.result || entry.key !== routeCheckKey(trip)) return null;
+    if (!["suspect", "no_match"].includes(entry.result.status)) return null;
+    if (trip.route_check_ok === trip.route_id) return null;
+    return entry.result;
+}
+
+/** Маршрут із підказки; зупинки — за треком, інакше перша й остання маршруту. */
+function applyRouteSuggestion(trip, s) {
+    const rid = s.route_id;
+    if (!routeById.has(rid) || isUnbound(rid)) return;
+    let start = hasStop(rid, s.start_stop_id) ? s.start_stop_id : firstStopId(rid);
+    let end = hasStop(rid, s.end_stop_id) ? s.end_stop_id : lastStopId(rid);
+    if (!(stopPos(rid, end) > stopPos(rid, start))) {
+        start = firstStopId(rid);
+        end = lastStopId(rid);
+    }
+    trip.route_id = rid;
+    trip.route_name = routeName(rid);
+    trip.start_stop_id = start;
+    trip.end_stop_id = end;
+    changed();
+}
+
+function keepTripRoute(trip) {
+    trip.route_check_ok = trip.route_id;
+    changed();
+}
+
+function routeCheckBox(trip, r) {
+    const box = document.createElement("div");
+    box.className = "cm-route-check";
+    const msg = document.createElement("div");
+    msg.textContent = "⚠ " + r.message;
+    box.appendChild(msg);
+    if (readOnly) return box;
+    const actions = document.createElement("div");
+    actions.className = "cm-route-check-actions";
+    const suggestions = (r.suggestions || []).filter((s) => routeById.has(s.route_id) && !isUnbound(s.route_id));
+    for (const s of suggestions) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "btn btn-sm btn-primary";
+        btn.textContent = `Змінити на «${routeName(s.route_id)}»`;
+        btn.title = "Зупинки ходки буде підібрано за треком — перевірте їх";
+        btn.addEventListener("click", (e) => { e.stopPropagation(); applyRouteSuggestion(trip, s); });
+        actions.appendChild(btn);
+    }
+    const keep = document.createElement("button");
+    keep.type = "button";
+    keep.className = "btn btn-sm";
+    keep.textContent = suggestions.length ? "Залишити" : "Зрозуміло";
+    keep.title = "Більше не показувати для цього маршруту ходки";
+    keep.addEventListener("click", (e) => { e.stopPropagation(); keepTripRoute(trip); });
+    actions.appendChild(keep);
+    box.appendChild(actions);
+    return box;
 }
 
 // ── форма «+»: відмітка на поточному часі ───────────────────────────
@@ -831,6 +949,8 @@ function renderSidebar() {
             head.appendChild(tools);
         }
         tripEl.appendChild(head);
+        const warning = routeWarning(trip);
+        if (warning) tripEl.appendChild(routeCheckBox(trip, warning));
 
         for (const seg of segs) {
             const idx = trip.marks.indexOf(seg.from);
@@ -925,6 +1045,7 @@ function chronologyPayload() {
         closed: t.closed,
         start_stop_id: t.start_stop_id,
         end_stop_id: t.closed ? t.end_stop_id : null,
+        route_check_ok: t.route_check_ok ?? null,
         marks: t.marks.map((m) => ({ ...m })),
     }));
 }
@@ -956,9 +1077,32 @@ function selectError(err) {
     if (mark) select(trip.uid, mark.uid);
 }
 
+/** Ходки з невирішеним попередженням перевірки маршруту: підтвердження, але не заборона. */
+async function confirmRouteWarnings() {
+    clearTimeout(routeCheckTimer);
+    $("ccSaveState").textContent = "Перевірка маршрутів за треком…";
+    await runRouteChecks();
+    const flagged = trips.filter((t) => routeWarning(t));
+    if (!flagged.length) return true;
+    const occ = occurrenceMap();
+    const list = flagged
+        .map((t) => `• ${routeName(t.route_id, t.route_name)} · ходка #${occ.get(t.uid) || "?"}`)
+        .join("\n");
+    if (window.confirm(`За GPS-треком у цих ходок, схоже, вибрано не той маршрут:\n${list}\n\nЗавершити підрахунок все одно?`)) {
+        return true;
+    }
+    select(flagged[0].uid, flagged[0].marks[0].uid);
+    $("ccSaveState").textContent = "Перевірте маршрут ходки або натисніть «Залишити».";
+    return false;
+}
+
 async function save() {
     syncCountInput();
     $("ccSave").disabled = true;
+    if (!(await confirmRouteWarnings())) {
+        $("ccSave").disabled = false;
+        return;
+    }
     $("ccSaveState").textContent = "Збереження…";
     try {
         await player.flushAutosave(false);
@@ -1083,6 +1227,7 @@ bindSidebarToggle();
 bindEditor();
 sortTrips();
 render();
+scheduleRouteChecks();
 
 (async () => {
     const ok = await player.loadMedia(cfg.mediaUrl);

@@ -303,6 +303,7 @@ def session_detail(imei: str, day: str, db: Session = Depends(get_db)):
         "status": session.status,
         "data": data,
         "tariffs": tariffs,
+        "revenue_method": rev.car_revenue_method(car),
     }
 
 

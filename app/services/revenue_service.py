@@ -12,10 +12,14 @@
        * для каждой поездки берём цену пары остановок из tariffs.prices
          тарифа, действующего на день по истории car_route_tariffs.
 
-FIFO-логика: при уменьшении count выходят те, кто сел раньше всех из ещё
-едущих; точка высадки — from_stop сегмента, на котором обнаружено уменьшение
-(человек уже не посчитан в этом сегменте). Остаток в конце ходки выходит на
-последней to_stop ходки.
+Способ разбора — cars.revenue_method:
+  * fifo — при уменьшении count выходят те, кто сел раньше всех из ещё едущих;
+  * lifo — выходят те, кто сел позже всех; севшие на той же остановке, где
+    обнаружено уменьшение, выходят последними (иначе дубль остановки в ручной
+    хронологии «съедал» бы пассажиров без поездки).
+Точка высадки — from_stop сегмента, на котором обнаружено уменьшение (человек
+уже не посчитан в этом сегменте). Остаток в конце ходки выходит на последней
+to_stop ходки.
 """
 
 from __future__ import annotations
@@ -27,6 +31,19 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import CarRouteTariff, Tariff
+
+METHOD_FIFO = "fifo"
+METHOD_LIFO = "lifo"
+REVENUE_METHODS = (METHOD_FIFO, METHOD_LIFO)
+
+
+def clean_method(value) -> str:
+    value = str(value or "").strip().lower()
+    return value if value in REVENUE_METHODS else METHOD_FIFO
+
+
+def car_revenue_method(car) -> str:
+    return clean_method(getattr(car, "revenue_method", None))
 
 
 # ── общие утилиты ────────────────────────────────────────────────────
@@ -71,8 +88,20 @@ def _run_key(seg: dict) -> tuple:
     return (seg.get("route_id"), seg.get("occurrence"))
 
 
-def _compute_run(segments: list[dict]) -> tuple[list[dict], int, list[str]]:
-    """FIFO по одной ходке. -> (trips, boardings, warnings)."""
+def _exit_order(queue: list[list[int]], drop_id: int | None, method: str) -> list[int]:
+    """Индексы queue в порядке выхода пассажиров на остановке drop_id."""
+    if method != METHOD_LIFO:
+        return list(range(len(queue)))
+    latest = list(range(len(queue) - 1, -1, -1))
+    other = [i for i in latest if queue[i][0] != drop_id]
+    same = [i for i in latest if queue[i][0] == drop_id]
+    return other + same
+
+
+def _compute_run(
+    segments: list[dict], method: str = METHOD_FIFO,
+) -> tuple[list[dict], int, list[str]]:
+    """Разбор одной ходки (FIFO / LIFO). -> (trips, boardings, warnings)."""
     trips: list[dict] = []
     warnings: list[str] = []
     boardings = 0
@@ -91,8 +120,10 @@ def _compute_run(segments: list[dict]) -> tuple[list[dict], int, list[str]]:
         elif delta < 0:
             need = -delta
             drop_id = _stop_id(seg, "from_stop")  # высадка на границе перед seg
-            while need > 0 and queue:
-                board_id, cnt = queue[0]
+            for idx in _exit_order(queue, drop_id, method):
+                if need <= 0:
+                    break
+                board_id, cnt = queue[idx]
                 take = min(cnt, need)
                 if drop_id is not None and board_id != drop_id:
                     trips.append({
@@ -101,12 +132,9 @@ def _compute_run(segments: list[dict]) -> tuple[list[dict], int, list[str]]:
                         "to_id": drop_id,
                         "pax": take,
                     })
-                cnt -= take
+                queue[idx][1] = cnt - take
                 need -= take
-                if cnt == 0:
-                    queue.pop(0)
-                else:
-                    queue[0][1] = cnt
+            queue = [entry for entry in queue if entry[1] > 0]
             if need > 0:
                 warnings.append(f"count_underflow:{seg.get('seg_key')}")
         prev = c
@@ -124,8 +152,8 @@ def _compute_run(segments: list[dict]) -> tuple[list[dict], int, list[str]]:
     return trips, boardings, warnings
 
 
-def intercity_runs(data: dict) -> list[dict]:
-    """FIFO-разбор каждой ходки межгорода.
+def intercity_runs(data: dict, method: str = METHOD_FIFO) -> list[dict]:
+    """Разбор каждой ходки межгорода способом method (fifo / lifo).
 
     -> [{route_id, occurrence, segments, trips, boardings, warnings}] в порядке
     появления ходок в data.segments; segments внутри ходки — по времени.
@@ -138,7 +166,7 @@ def intercity_runs(data: dict) -> list[dict]:
     runs: list[dict] = []
     for (route_id, occurrence), segs in groups.items():
         segs_sorted = sorted(segs, key=lambda s: s.get("period_start_utc") or 0)
-        trips, boardings, warnings = _compute_run(segs_sorted)
+        trips, boardings, warnings = _compute_run(segs_sorted, clean_method(method))
         runs.append({
             "route_id": route_id,
             "occurrence": occurrence,
@@ -150,7 +178,9 @@ def intercity_runs(data: dict) -> list[dict]:
     return runs
 
 
-def compute_intercity_passengers(data: dict) -> tuple[list[dict], float, list[str]]:
+def compute_intercity_passengers(
+    data: dict, method: str = METHOD_FIFO,
+) -> tuple[list[dict], float, list[str]]:
     """Разбирает все ходки межгорода. -> (trips, passengers_total, warnings).
 
     trips — список завершённых поездок для расчёта денег.
@@ -159,7 +189,7 @@ def compute_intercity_passengers(data: dict) -> tuple[list[dict], float, list[st
     all_trips: list[dict] = []
     total_boardings = 0.0
     all_warnings: list[str] = []
-    for run in intercity_runs(data):
+    for run in intercity_runs(data, method):
         all_trips.extend(run["trips"])
         total_boardings += run["boardings"]
         all_warnings.extend(run["warnings"])

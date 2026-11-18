@@ -32,6 +32,11 @@ class Car(Base):
         ENUM("none", "auto_gap_filling", "manual_chronology"),
         nullable=False, default="none", server_default="none",
     )
+    # Спосіб розрахунку виручки міжміста: fifo (хто раніше сів — той раніше
+    # вийшов) | lifo (хто пізніше сів — той раніше вийшов).
+    revenue_method = Column(
+        ENUM("fifo", "lifo"), nullable=False, default="fifo", server_default="fifo",
+    )
     route_kind = Column(SET("city", "intercity"), nullable=False, default="")
     # Рахувальник сам обирає тип маршруту (місто/міжмісто) у панелі перед підрахунком.
     route_kind_chose = Column(Boolean, nullable=False, default=False)

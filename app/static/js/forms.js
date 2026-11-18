@@ -234,7 +234,7 @@ function initCountSourcePriority() {
 }
 
 function initIntercityFields() {
-    const wraps = ["max_people_wrap", "count_optimization_wrap"]
+    const wraps = ["max_people_wrap", "count_optimization_wrap", "revenue_method_wrap"]
         .map((id) => document.getElementById(id))
         .filter(Boolean);
     const radios = document.querySelectorAll('input[name="route_kind"]');
@@ -248,14 +248,14 @@ function initIntercityFields() {
     toggle();
 }
 
-function initCountOptimizationHint() {
-    const hint = document.getElementById("count_optimization_hint");
-    const hintsEl = document.getElementById("count_optimization_hints");
-    const radios = document.querySelectorAll('input[name="count_optimization"]');
+function initRadioHint(name) {
+    const hint = document.getElementById(`${name}_hint`);
+    const hintsEl = document.getElementById(`${name}_hints`);
+    const radios = document.querySelectorAll(`input[name="${name}"]`);
     if (!hint || !hintsEl || !radios.length) return;
     const hints = JSON.parse(hintsEl.textContent || "{}");
     const update = () => {
-        const selected = document.querySelector('input[name="count_optimization"]:checked');
+        const selected = document.querySelector(`input[name="${name}"]:checked`);
         hint.textContent = (selected && hints[selected.value]) || "";
     };
     radios.forEach((radio) => radio.addEventListener("change", update));
@@ -269,5 +269,6 @@ document.addEventListener("DOMContentLoaded", () => {
     initSearchableSelects();
     initCountSourcePriority();
     initIntercityFields();
-    initCountOptimizationHint();
+    initRadioHint("count_optimization");
+    initRadioHint("revenue_method");
 });

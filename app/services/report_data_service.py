@@ -56,6 +56,7 @@ class ReportHeader:
     previous_sent_at: datetime | None
     generated_at: datetime
     source_label: str
+    revenue_method: str = rev.METHOD_FIFO
 
     @property
     def kind_label(self) -> str:
@@ -69,11 +70,16 @@ class ReportHeader:
     def counted_description(self) -> str:
         """Що саме підраховано — однаково для листа і xlsx."""
         if self.kind == "intercity":
+            principle = (
+                "«хто пізніше сів — той раніше вийшов»"
+                if self.revenue_method == rev.METHOD_LIFO
+                else "«хто раніше сів — той раніше вийшов»"
+            )
             return (
                 "Для кожної ходки підраховано кількість пасажирів у салоні на кожному "
                 f"відрізку між зупинками (за матеріалами: {self.source_label}). "
                 "Посадки та висадки визначено за зміною кількості пасажирів між "
-                "відрізками за принципом «хто раніше сів — той раніше вийшов»."
+                f"відрізками за принципом {principle}."
             )
         return (
             "Підраховано загальну кількість пасажирів, які увійшли до салону "
@@ -345,6 +351,7 @@ def build_header(
         previous_sent_at=previous_sent_at,
         generated_at=now_local(),
         source_label=SOURCE_LABELS.get(source, "записи з камер салону"),
+        revenue_method=rev.car_revenue_method(car),
     )
 
 
@@ -377,7 +384,8 @@ def build_intercity_report(
 ) -> IntercityReport:
     """Ходки, поездки с ценой по актуальному тарифу и отрезки межгорода.
 
-    FIFO-разбор — rev.intercity_runs (тот же, что в API выручки), цена поездки —
+    Разбор — rev.intercity_runs способом header.revenue_method (тот же, что в
+    API выручки), цена поездки —
     пара «остановка посадки — остановка высадки» тарифа маршрута.
     """
     stop_names = _stop_names(data.get("segments") or [])
@@ -405,7 +413,7 @@ def build_intercity_report(
     )
     seen_routes: set = set()
 
-    for number, run in enumerate(rev.intercity_runs(data), start=1):
+    for number, run in enumerate(rev.intercity_runs(data, header.revenue_method), start=1):
         segs = run["segments"]
         route_id = run["route_id"]
         occurrence = _int(run["occurrence"])

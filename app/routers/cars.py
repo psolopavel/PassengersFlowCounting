@@ -8,6 +8,8 @@ from app.models import User
 from app.security import require_full_manager, require_manager
 from app.services import car_service as svc
 from app.services import joomla_service
+from app.services import revenue_service as rev
+from app.services import summary_service
 from app.templating import flash, render
 from app.utils import clamp_rating, parse_optional_int
 
@@ -28,6 +30,9 @@ _META = {
     "count_optimizations": svc.COUNT_OPTIMIZATIONS,
     "count_optimization_labels": svc.COUNT_OPTIMIZATION_LABELS,
     "count_optimization_hints": svc.COUNT_OPTIMIZATION_HINTS,
+    "revenue_methods": svc.REVENUE_METHODS,
+    "revenue_method_labels": svc.REVENUE_METHOD_LABELS,
+    "revenue_method_hints": svc.REVENUE_METHOD_HINTS,
 }
 
 
@@ -120,6 +125,7 @@ def create(
     schedule_start: str = Form(_DEFAULT_SCHEDULE_START),
     schedule_end: str = Form(_DEFAULT_SCHEDULE_END),
     max_people_count_in_car: str = Form("100"),
+    revenue_method: str = Form(rev.METHOD_FIFO),
     db: Session = Depends(get_db),
     joomla_db: Session = Depends(get_joomla_db),
     user: User = Depends(require_full_manager),
@@ -150,6 +156,7 @@ def create(
             schedule_start=schedule_start.strip(),
             schedule_end=schedule_end.strip(),
             max_people_count_in_car=parse_optional_int(max_people_count_in_car),
+            revenue_method=revenue_method,
         )
     except svc.ServiceError as exc:
         flash(request, str(exc), "error")
@@ -204,6 +211,7 @@ def update(
     schedule_start: str = Form(_DEFAULT_SCHEDULE_START),
     schedule_end: str = Form(_DEFAULT_SCHEDULE_END),
     max_people_count_in_car: str = Form("100"),
+    revenue_method: str = Form(rev.METHOD_FIFO),
     db: Session = Depends(get_db),
     joomla_db: Session = Depends(get_joomla_db),
     user: User = Depends(require_full_manager),
@@ -212,6 +220,7 @@ def update(
     if car is None:
         flash(request, "Машину не знайдено", "error")
         return RedirectResponse("/admin/cars/", status_code=HTTP_303_SEE_OTHER)
+    old_method = rev.car_revenue_method(car)
 
     owner_id, owner_name, owner_err = _resolve_owner(joomla_db, owner_user_id)
     if owner_err:
@@ -241,12 +250,22 @@ def update(
             schedule_start=schedule_start.strip(),
             schedule_end=schedule_end.strip(),
             max_people_count_in_car=parse_optional_int(max_people_count_in_car),
+            revenue_method=revenue_method,
         )
     except svc.ServiceError as exc:
         flash(request, str(exc), "error")
         return RedirectResponse(
             f"/admin/cars/{car_id}/edit", status_code=HTTP_303_SEE_OTHER
         )
+
+    if rev.car_revenue_method(car) != old_method:
+        try:
+            days = summary_service.recompute_intercity_trips(db, car)
+        except Exception:  # noqa: BLE001
+            db.rollback()
+            flash(request, "Спосіб розрахунку збережено, але перерахувати минулі дні не вдалося", "error")
+        else:
+            flash(request, f"Спосіб розрахунку виручки змінено — перераховано днів: {days}", "info")
 
     flash(request, "Дані машини оновлено", "success")
     return RedirectResponse("/admin/cars/", status_code=HTTP_303_SEE_OTHER)

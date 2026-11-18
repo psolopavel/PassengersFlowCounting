@@ -149,6 +149,25 @@
             <script type="application/json" id="count_optimization_hints">{{ count_optimization_hints | tojson }}</script>
         </div>
 
+        {% set current_revenue_method = car.revenue_method if car and car.revenue_method in revenue_methods else revenue_methods[0] %}
+        <div class="field full{% if not is_intercity %} hidden{% endif %}" id="revenue_method_wrap">
+            <label>Спосіб розрахунку виручки (міжмісто)</label>
+            <div class="checks checks-column">
+                {% for m in revenue_methods %}
+                <label class="check" title="{{ revenue_method_hints[m] }}">
+                    <input type="radio" name="revenue_method" value="{{ m }}" {% if current_revenue_method == m
+                        %}checked{% endif %}>
+                    {{ revenue_method_labels[m] }}
+                </label>
+                {% endfor %}
+            </div>
+            <small class="hint" id="revenue_method_hint"></small>
+            <script type="application/json" id="revenue_method_hints">{{ revenue_method_hints | tojson }}</script>
+            {% if car %}
+            <small class="hint">Після зміни способу виручку всіх уже підрахованих днів цієї машини буде перераховано.</small>
+            {% endif %}
+        </div>
+
         <div class="field">
             <label class="check">
                 <input type="checkbox" name="is_active" value="true" {% if (car and car.is_active) or not car

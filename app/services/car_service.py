@@ -11,6 +11,7 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.models import Car
+from app.services import revenue_service as rev
 
 _UTC_OFFSET = timedelta(hours=3)
 _DEFAULT_SCHEDULE_LOCAL = ("06:00", "22:00")
@@ -39,6 +40,18 @@ COUNT_OPTIMIZATION_HINTS = {
     "перед автоматичним визначенням ходок і відрізків.",
     OPTIMIZATION_MANUAL_CHRONOLOGY: "Програма не визначає ходки за треком: рахувальник сам "
     "за відео відмічає початок маршруту, зупинки, кількість людей між ними та кінець маршруту.",
+}
+
+REVENUE_METHODS = list(rev.REVENUE_METHODS)
+REVENUE_METHOD_LABELS = {
+    rev.METHOD_FIFO: "FIFO — хто раніше сів, той раніше вийшов",
+    rev.METHOD_LIFO: "LIFO — хто пізніше сів, той раніше вийшов",
+}
+REVENUE_METHOD_HINTS = {
+    rev.METHOD_FIFO: "Коли в салоні стає менше людей, виходять ті, хто сів найраніше. "
+    "Решта виходить на кінцевій зупинці ходки.",
+    rev.METHOD_LIFO: "Коли в салоні стає менше людей, виходять ті, хто сів найпізніше "
+    "(на попередніх зупинках). Ті, хто сів першими, виходять на кінцевій зупинці ходки.",
 }
 
 
@@ -211,6 +224,7 @@ def create_car(
     schedule_start: str = "06:00",
     schedule_end: str = "22:00",
     max_people_count_in_car: int | None = None,
+    revenue_method: str = rev.METHOD_FIFO,
 ) -> Car:
     name = name.strip()
     imei = imei.strip()
@@ -246,6 +260,7 @@ def create_car(
         source_priority=_clean_source_priority(source_priority, effective_source),
         non_shedule_count=non_shedule_count,
         count_optimization=_clean_count_optimization(count_optimization),
+        revenue_method=rev.clean_method(revenue_method) if "intercity" in kinds else rev.METHOD_FIFO,
         route_kind=kinds,
         route_kind_chose=route_kind_chose,
         max_people_count_in_car=max_people,
@@ -282,6 +297,7 @@ def update_car(
     schedule_start: str = "06:00",
     schedule_end: str = "22:00",
     max_people_count_in_car: int | None = None,
+    revenue_method: str | None = None,
 ) -> Car:
     name = name.strip()
     imei = imei.strip()
@@ -316,6 +332,8 @@ def update_car(
     car.route_kind_chose = route_kind_chose
     if "intercity" in kinds:
         car.max_people_count_in_car = clean_max_people_count(max_people_count_in_car)
+        if revenue_method is not None:
+            car.revenue_method = rev.clean_method(revenue_method)
     car.schedule = schedule_json
 
     db.commit()

@@ -1,6 +1,6 @@
 """Материализация завершённой сессии (ready / skipped) в агрегат counting_daily_summary.
 
-Тяжёлый разбор data (FIFO пассажиров, километраж) делается здесь — один раз
+Тяжёлый разбор data (FIFO / LIFO пассажиров — cars.revenue_method, километраж) делается здесь — один раз
 при завершении сессии, а не на каждом запросе внешнего API. Выручка НЕ
 хранится: считается на чтении из trips_json по актуальному тарифу.
 
@@ -99,7 +99,9 @@ def _distance_km(data: dict) -> float:
         return 0.0
 
 
-def _summary_fields(session: CountingSession, data: dict, imei: str) -> dict:
+def _summary_fields(
+    session: CountingSession, data: dict, imei: str, revenue_method: str,
+) -> dict:
     """Готовит поля агрегата из data сессии (без выручки).
 
     Skipped: числа не считаются — частично введённые до пропуска данные
@@ -122,7 +124,7 @@ def _summary_fields(session: CountingSession, data: dict, imei: str) -> dict:
             "comment": comment_from_data(data),
         }
     if kind == "intercity":
-        trips, passengers, _warnings = rev.compute_intercity_passengers(data)
+        trips, passengers, _warnings = rev.compute_intercity_passengers(data, revenue_method)
         trips_json = json.dumps(trips, ensure_ascii=False)
     elif kind == "final_stop":
         total_enters, total_outs, passengers = _final_stop_totals(data)
@@ -216,7 +218,7 @@ def materialize_day(
     if car is not None and car.imei:
         imei = str(car.imei).strip()
 
-    fields = _summary_fields(session, data, imei)
+    fields = _summary_fields(session, data, imei, rev.car_revenue_method(car))
     was_city = (
         existing is not None
         and existing.status == "ready"
@@ -236,6 +238,37 @@ def materialize_day(
     elif was_city:
         _delete_gps_city(existing.imei, day)
     return existing
+
+
+def recompute_intercity_trips(db: Session, car: Car) -> int:
+    """Перераховує trips_json усіх ready-днів межміста машини її поточним
+    cars.revenue_method. -> кількість оновлених днів.
+
+    Посадки від способу не залежать, а дані сесій не змінюються — тому без
+    повної матеріалізації і без черги звітів.
+    """
+    method = rev.car_revenue_method(car)
+    rows = db.execute(
+        select(CountingDailySummary, CountingSession)
+        .join(CountingSession, CountingSession.id == CountingDailySummary.session_id)
+        .where(
+            CountingDailySummary.car_id == int(car.id),
+            CountingDailySummary.status == "ready",
+            CountingDailySummary.kind == "intercity",
+        )
+    ).all()
+    updated = 0
+    for summary, session in rows:
+        data = _parse_data(session)
+        if data is None:
+            continue
+        trips, _passengers, _warnings = rev.compute_intercity_passengers(data, method)
+        trips_json = json.dumps(trips, ensure_ascii=False)
+        if trips_json != summary.trips_json:
+            summary.trips_json = trips_json
+            updated += 1
+    db.commit()
+    return updated
 
 
 def safe_sync_comment(db: Session, session: CountingSession) -> None:

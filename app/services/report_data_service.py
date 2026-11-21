@@ -377,6 +377,13 @@ def _stop_names(segments: list[dict]) -> dict[int, str]:
     return names
 
 
+def _segment_stop_name(stop: dict | None) -> str:
+    """Назва зупинки відрізка; обчислена за часом (ручна розмітка) — з «≈»."""
+    stop = stop or {}
+    name = stop.get("name") or "—"
+    return f"≈ {name}" if stop.get("estimated") else name
+
+
 def build_intercity_report(
     header: ReportHeader,
     data: dict,
@@ -462,8 +469,8 @@ def build_intercity_report(
                                    or seg.get("period_start_utc")),
                 arrival=local_dt((seg.get("to_stop") or {}).get("arrival_utc")
                                  or seg.get("period_end_utc")),
-                from_name=(seg.get("from_stop") or {}).get("name") or "—",
-                to_name=(seg.get("to_stop") or {}).get("name") or "—",
+                from_name=_segment_stop_name(seg.get("from_stop")),
+                to_name=_segment_stop_name(seg.get("to_stop")),
                 distance_km=km,
                 count=count,
                 delta=(count or 0) - prev,

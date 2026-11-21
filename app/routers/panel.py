@@ -18,6 +18,7 @@ from app.security import require_panel_access
 from app.services import car_service as car_svc
 from app.services import counting_build_service
 from app.services import counting_session_service as css
+from app.services import hybrid_counting_service as hybrid_svc
 from app.services import manual_chronology_service as manual_svc
 from app.services import panel_service as svc
 from app.services import route_check_service
@@ -249,6 +250,31 @@ def count_view(
                 active_page="count",
             )
 
+        if data.get("kind") == "intercity" and hybrid_svc.is_hybrid(data):
+            config["kind"] = "intercity"
+            config["mode"] = hybrid_svc.MODE_HYBRID
+            config["maxPeopleCountInCar"] = car_svc.max_people_for_car(car)
+            config["saveUrl"] = f"/panel/count/{car.id}/intercity-save"
+            config["routesCatalog"] = data.get("routes_catalog") or []
+            config["autoBlocks"] = data.get("auto_blocks") or []
+            config["autoSegments"] = data.get("auto_segments") or []
+            config["windows"] = data.get("windows") or []
+            config["chronology"] = data.get("chronology") or []
+            config["dataEndUtc"] = data.get("data_end_utc")
+            config["trackStartUtc"] = data.get("track_start_utc")
+            config["trackEndUtc"] = data.get("track_end_utc")
+            return render(
+                request, "panel/count_intercity_hybrid.html",
+                current_user=user, car=car, ref_day=ref_day, session=session,
+                counter_id=target_id,
+                panel_mode_label=panel_mode_label,
+                read_only=read_only,
+                routes_viewer_href=routes_viewer_href,
+                warnings=data.get("warnings") or [],
+                config_json=json.dumps(config, ensure_ascii=False),
+                active_page="count",
+            )
+
         config["segments"] = data.get("segments") or []
         if data.get("kind") == "final_stop":
             config["kind"] = "final_stop"
@@ -402,6 +428,29 @@ async def count_intercity_save(
 
     car = db.get(Car, car_id)
     max_people = car_svc.max_people_for_car(car)
+
+    if hybrid_svc.is_hybrid(css.load_data(session)):
+        counts, chronology = body.get("counts"), body.get("chronology")
+        if hybrid_svc.counts_exceed_max(counts, chronology, max_people):
+            return JSONResponse(
+                {"ok": False, "error": "count_too_high", "max": max_people},
+                status_code=400,
+            )
+        css.save_hybrid(
+            db, session,
+            counts=counts,
+            chronology=chronology,
+            add_time_sec=int(body.get("add_time_sec") or 0),
+        )
+        errors = hybrid_svc.validate_for_ready(css.load_data(session), max_people)
+        if errors:
+            return JSONResponse(
+                {"ok": False, "error": "invalid_hybrid", "errors": errors},
+                status_code=400,
+            )
+        css.set_status(db, session, "ready")
+        summary_service.safe_materialize_day(db, car_id, ref_day, count_type=count_type)
+        return JSONResponse({"ok": True})
 
     if manual_svc.is_manual(css.load_data(session)):
         css.save_manual_chronology(
@@ -865,6 +914,21 @@ async def count_save(
         css.save_city_fields(
             db, session,
             total=body.get("total"),
+            add_time_sec=int(body.get("add_time_sec") or 0),
+        )
+    elif kind == "intercity" and hybrid_svc.is_hybrid(data):
+        car = db.get(Car, car_id)
+        max_people = car_svc.max_people_for_car(car)
+        counts, chronology = body.get("counts"), body.get("chronology")
+        if hybrid_svc.counts_exceed_max(counts, chronology, max_people):
+            return JSONResponse(
+                {"ok": False, "error": "count_too_high", "max": max_people},
+                status_code=400,
+            )
+        css.save_hybrid(
+            db, session,
+            counts=counts,
+            chronology=chronology,
             add_time_sec=int(body.get("add_time_sec") or 0),
         )
     elif kind == "intercity" and manual_svc.is_manual(data):

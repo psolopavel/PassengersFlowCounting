@@ -1860,6 +1860,83 @@ button.session-comment-trigger.has-comment::after {
     font-size: 0.72rem;
 }
 
+/* ============ Міжмісто: гібрид (трек + ручні ділянки) ============ */
+.ch-tag {
+    margin-left: 4px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--bg-alt);
+    color: var(--text-dim);
+    font-size: 0.7rem;
+    font-weight: 600;
+    vertical-align: middle;
+}
+
+.ch-window {
+    margin-bottom: 10px;
+    padding: 6px;
+    border: 1px solid rgba(168, 85, 247, 0.45);
+    border-radius: 12px;
+    background: rgba(168, 85, 247, 0.06);
+}
+
+.ch-window.is-error {
+    border-color: var(--danger);
+}
+
+.ch-window .cc-trip {
+    margin-bottom: 6px;
+}
+
+.ch-window-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 6px;
+    width: 100%;
+    padding: 2px 4px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    font-family: inherit;
+    text-align: left;
+}
+
+.ch-window-head:hover,
+.ch-window-head.is-active {
+    border-color: #a855f7;
+}
+
+.ch-window-title {
+    font-weight: 700;
+    font-size: 0.82rem;
+}
+
+.ch-window-status,
+.ch-window-after,
+.ch-note {
+    padding: 2px 4px 6px;
+    color: var(--text-dim);
+    font-size: 0.78rem;
+    line-height: 1.35;
+}
+
+.ch-window.is-ok .ch-window-status {
+    color: var(--success);
+}
+
+.ch-window.is-error .ch-window-status {
+    color: var(--danger);
+}
+
+.ch-window-after {
+    padding-bottom: 0;
+    border-top: 1px dashed var(--border);
+    padding-top: 6px;
+}
+
 @media (max-width: 900px) {
     .cc-intercity {
         flex-direction: column;

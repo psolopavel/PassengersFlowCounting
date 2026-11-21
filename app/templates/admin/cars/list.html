@@ -104,7 +104,7 @@
                     %}
                     {% if 'intercity' in car.route_kind and car.count_optimization in count_optimization_labels %}
                     <span class="pill" title="{{ count_optimization_labels[car.count_optimization] }}">
-                        {{ 'ручна хронологія' if car.count_optimization == 'manual_chronology' else 'автозаповнення треку' }}
+                        {% if car.count_optimization == 'manual_chronology' %}ручна хронологія{% elif car.count_optimization == 'hybrid' %}гібрид{% else %}автозаповнення треку{% endif %}
                     </span>
                     {% endif %}
                     {% else %}<span class="muted">—</span>{% endif %}

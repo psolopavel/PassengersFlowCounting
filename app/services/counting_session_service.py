@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.models import CountingSession
 from app.services import counting_build_service
+from app.services import hybrid_counting_service as hybrid_svc
 from app.services import manual_chronology_service as manual_svc
 from app.utils.debug_log import debug_log
 
@@ -390,6 +391,32 @@ def save_manual_chronology(
     return save_progress(db, session, data=data, add_time_sec=add_time_sec)
 
 
+def save_hybrid(
+    db: Session,
+    session: CountingSession,
+    *,
+    counts=None,
+    chronology: list | None = None,
+    add_time_sec: int = 0,
+) -> CountingSession:
+    """Автосейв / фінальне збереження гібриду: count авто-відрізків + ходки вікон.
+
+    counts / chronology = None — відповідна частина не змінюється.
+    """
+    data = load_data(session) or {}
+    if counts is not None or isinstance(chronology, list):
+        hybrid_svc.apply_counts(data, counts)
+        if isinstance(chronology, list):
+            trips = hybrid_svc.sanitize_chronology(
+                chronology, data.get("windows") or [], data.get("routes_catalog") or []
+            )
+        else:
+            trips = data.get("chronology") or []
+        data = hybrid_svc.apply_chronology(data, trips)
+    data = _preserve_session_flags(session, data)
+    return save_progress(db, session, data=data, add_time_sec=add_time_sec)
+
+
 def sync_manual_routes(
     db: Session, routes_db: Session, session: CountingSession, car
 ) -> list[str]:
@@ -516,6 +543,9 @@ def _merge_counts(old: dict | None, new: dict) -> dict:
     if old.get("counter_choice"):
         new["counter_choice"] = True
 
+    if hybrid_svc.is_hybrid(new):
+        return hybrid_svc.merge_rebuild(old, new, _SEG_TIME_TOL)
+
     if manual_svc.is_manual(new):
         # Хронологію будує рахувальник — пересбор лише оновлює трек і маршрути.
         chronology = old.get("chronology") if manual_svc.is_manual(old) else None
@@ -583,7 +613,7 @@ def reset_session(
         build_kind = _resolve_kind(car, route_kind) if route_kind is not None else prev_kind
     kind_changed = build_kind != prev_kind
 
-    # Режим міжміста (авто / ручна хронологія) фіксується в сесії: скидання його
+    # Режим міжміста (авто / ручна хронологія / гібрид) фіксується в сесії: скидання його
     # не змінює, навіть якщо в машини вже інша оптимізація. Новий режим — «Перезібрати».
     build_mode = None
     if build_kind == "intercity" and not kind_changed and old:

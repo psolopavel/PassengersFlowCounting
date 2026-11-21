@@ -27,9 +27,9 @@ class Car(Base):
     )
     # Дозволити рахувальнику рахувати сьогодні без очікування кінця розкладу.
     non_shedule_count = Column(Boolean, nullable=False, default=False, server_default="0")
-    # Оптимізація підрахунку міжміста: none | auto_gap_filling | manual_chronology.
+    # Оптимізація підрахунку міжміста: none | auto_gap_filling | manual_chronology | hybrid.
     count_optimization = Column(
-        ENUM("none", "auto_gap_filling", "manual_chronology"),
+        ENUM("none", "auto_gap_filling", "manual_chronology", "hybrid"),
         nullable=False, default="none", server_default="none",
     )
     # Спосіб розрахунку виручки міжміста: fifo (хто раніше сів — той раніше

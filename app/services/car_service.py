@@ -30,16 +30,21 @@ DEFAULT_MAX_PEOPLE_IN_CAR = 100
 OPTIMIZATION_NONE = "none"
 OPTIMIZATION_GAP_FILLING = "auto_gap_filling"
 OPTIMIZATION_MANUAL_CHRONOLOGY = "manual_chronology"
-COUNT_OPTIMIZATIONS = [OPTIMIZATION_GAP_FILLING, OPTIMIZATION_MANUAL_CHRONOLOGY]
+OPTIMIZATION_HYBRID = "hybrid"
+COUNT_OPTIMIZATIONS = [OPTIMIZATION_GAP_FILLING, OPTIMIZATION_MANUAL_CHRONOLOGY, OPTIMIZATION_HYBRID]
 COUNT_OPTIMIZATION_LABELS = {
     OPTIMIZATION_GAP_FILLING: "Автоматичне заповнення пропусків треку",
     OPTIMIZATION_MANUAL_CHRONOLOGY: "Створення хронології проїзду за прив'язаними маршрутами",
+    OPTIMIZATION_HYBRID: "Гібрид: відрізки за треком, розриви — хронологією вручну",
 }
 COUNT_OPTIMIZATION_HINTS = {
     OPTIMIZATION_GAP_FILLING: "Розриви GPS-треку добудовуються за прив'язаними маршрутами "
     "перед автоматичним визначенням ходок і відрізків.",
     OPTIMIZATION_MANUAL_CHRONOLOGY: "Програма не визначає ходки за треком: рахувальник сам "
     "за відео відмічає початок маршруту, зупинки, кількість людей між ними та кінець маршруту.",
+    OPTIMIZATION_HYBRID: "Там, де є трек, ходки й відрізки визначаються автоматично (без дорисовки). "
+    "Розриви треку та з'їзди з маршруту рахувальник розмічає вручну за відео, як у хронології; "
+    "розмітка має зійтися з треком після розриву.",
 }
 
 REVENUE_METHODS = list(rev.REVENUE_METHODS)

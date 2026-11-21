@@ -777,7 +777,7 @@ def detect_route_periods_in_ranges(
     перескочить через разрыв, иначе стоянка + скачок склеиваются в один
     «проезд вперёд» и контекст до/после разрыва теряется.
     Возвращает [{'route_idx','route_id','start_index','end_index','start_utc',
-    'end_utc','along_start','along_end','points','break'}].
+    'end_utc','along_start','along_end','points','point_indices','break'}].
     """
     times = track["time"]
     periods: list[dict] = []
@@ -802,6 +802,7 @@ def detect_route_periods_in_ranges(
                     "along_start": alongs[0],
                     "along_end": alongs[-1],
                     "points": len(pts),
+                    "point_indices": pts,
                     "break": reason,
                 })
             if resume_i <= i:
@@ -878,6 +879,51 @@ def _mk_segment(
     return seg
 
 
+def period_visits(
+    track: dict, route: dict, pts: list[int],
+) -> tuple[list[dict], list[float], list[int]] | None:
+    """Визиты остановок проезда по времени + проекции его точек на линию.
+
+    -> (events [{stop, arrival_utc, departure_utc}], p_along, p_time) или None,
+    если на линию легло меньше двух точек.
+    """
+    times = track["time"]
+    p_along = []
+    p_time = []
+    for idx in pts:
+        proj = project_point_on_polyline(
+            track["lat"][idx], track["lon"][idx],
+            route["points"], route["segment_lengths"],
+        )
+        if proj is None:
+            continue
+        p_along.append(proj["along"])
+        p_time.append(int(times[idx]))
+    if len(p_along) < 2:
+        return None
+
+    events = []
+    for stop in route["stops"]:
+        for ev in _stop_events(track, pts, stop, p_along, p_time):
+            events.append({"stop": stop, **ev})
+    events.sort(key=lambda v: (v["arrival_utc"], v["departure_utc"]))
+
+    # Склеиваем ПОДРЯД идущие визиты ОДНОЙ зоны (стоянка/манёвр у конечной,
+    # многократный вход-выход из радиуса) в один визит — иначе плодятся
+    # бессмысленные отрезки «A → A» с временем касания края радиуса.
+    # Повторный визит зоны, когда между ними была ДРУГАЯ зона (разворот
+    # D→C→B→C), сохраняется — склеиваем только соседние одинаковые.
+    collapsed: list[dict] = []
+    for ev in events:
+        if collapsed and collapsed[-1]["stop"]["id"] == ev["stop"]["id"]:
+            collapsed[-1]["departure_utc"] = max(
+                collapsed[-1]["departure_utc"], ev["departure_utc"]
+            )
+        else:
+            collapsed.append(ev)
+    return collapsed, p_along, p_time
+
+
 def build_segments(track: dict, routes: list[dict], periods: list[dict]) -> list[dict]:
     """Отрезки между СОСЕДНИМИ ВО ВРЕМЕНИ визитами остановок внутри периода.
 
@@ -905,44 +951,14 @@ def build_segments(track: dict, routes: list[dict], periods: list[dict]) -> list
             continue
 
         pts = period["point_indices"]
-        p_along = []
-        p_time = []
-        for idx in pts:
-            proj = project_point_on_polyline(
-                track["lat"][idx], track["lon"][idx],
-                route["points"], route["segment_lengths"],
-            )
-            if proj is None:
-                continue
-            p_along.append(proj["along"])
-            p_time.append(int(times[idx]))
-        if len(p_along) < 2:
+        visits = period_visits(track, route, pts)
+        if visits is None:
             period_diag.append({
                 "route_id": route["id"], "occurrence": period["occurrence"],
-                "skip": "p_along<2", "p_along": len(p_along),
+                "skip": "p_along<2",
             })
             continue
-
-        events = []
-        for stop in stops:
-            for ev in _stop_events(track, pts, stop, p_along, p_time):
-                events.append({"stop": stop, **ev})
-        events.sort(key=lambda v: (v["arrival_utc"], v["departure_utc"]))
-
-        # Склеиваем ПОДРЯД идущие визиты ОДНОЙ зоны (стоянка/манёвр у конечной,
-        # многократный вход-выход из радиуса) в один визит — иначе плодятся
-        # бессмысленные отрезки «A → A» с временем касания края радиуса.
-        # Повторный визит зоны, когда между ними была ДРУГАЯ зона (разворот
-        # D→C→B→C), сохраняется — склеиваем только соседние одинаковые.
-        collapsed: list[dict] = []
-        for ev in events:
-            if collapsed and collapsed[-1]["stop"]["id"] == ev["stop"]["id"]:
-                collapsed[-1]["departure_utc"] = max(
-                    collapsed[-1]["departure_utc"], ev["departure_utc"]
-                )
-            else:
-                collapsed.append(ev)
-        events = collapsed
+        events, p_along, _p_time = visits
 
         occurrence = period["occurrence"]
         period_start = int(times[pts[0]])

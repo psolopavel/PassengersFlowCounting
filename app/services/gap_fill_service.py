@@ -2,7 +2,8 @@
 
 Идея (кратко):
   1. В треке ищем разрывы: пара соседних точек с расстоянием > MIN_GAP_METERS.
-     Разрыв расширяется в прошлое по «зависшим» дублям координаты перед прыжком.
+     Разрыв расширяется в прошлое по «зависшим» дублям координаты перед прыжком
+     (кроме точек с подтверждённым фиксом GNSS — это реальная стоянка).
   2. Для каждой реальной точки считаем, на каких маршрутах она лежит (коридор)
      и её положение `along` вдоль полилинии.
   3. По разрывам идём по времени: для каждого ищем маршрут, покрывающий обе
@@ -30,7 +31,7 @@ from __future__ import annotations
 
 import math
 
-from app.services import gap_context_service
+from app.services import gap_context_service, track_service
 from app.utils.geo import (
     bearing,
     haversine,
@@ -62,13 +63,21 @@ def _same_coord(lat1, lon1, lat2, lon2) -> bool:
 # ── детект разрывов ─────────────────────────────────────────────────
 
 def _first_stationary_index(track: dict, index_before: int) -> int:
+    """Начало разрыва: дубли координаты перед прыжком считаются «зависшими»
+    (трекер без фикса повторял старую позицию). Точка с подтверждённым фиксом —
+    реальная стоянка: на ней расширение останавливается."""
+    fixed = track_service.fix_flags(track)
     lat_ref = track["lat"][index_before]
     lon_ref = track["lon"][index_before]
     first = index_before
+    if fixed[index_before]:
+        return first
     for j in range(index_before - 1, -1, -1):
         if not _same_coord(track["lat"][j], track["lon"][j], lat_ref, lon_ref):
             break
         first = j
+        if fixed[j]:
+            break
     return first
 
 

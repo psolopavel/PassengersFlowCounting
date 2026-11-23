@@ -6,8 +6,9 @@
 
 Вікно — це:
   * розрив треку: між сусідніми точками ≥ GAP_MIN_SEC (на стоянці трекер шле
-    точки з нульовою швидкістю, тож тиша — це збій), зокрема на початку й у
-    кінці дня;
+    точки з нульовою швидкістю, тож тиша — це збій) або ≥ NOFIX_GAP_MIN_SEC,
+    якщо між ними трекер слав точки без фіксу GNSS (track["nofix"]: де була
+    машина — невідомо), зокрема на початку й у кінці дня;
   * проскочена зупинка: усередині проїзду лінія «перестрибнула» зупинку, у якої
     за проїзд немає жодного візиту;
   * з'їзд з маршруту: між проїздами машина від'їжджала ≥ OFF_ROUTE_MIN_M від
@@ -66,6 +67,7 @@ from app.utils.local_tz import unix_to_local
 MODE_HYBRID = "hybrid"
 
 GAP_MIN_SEC = 15 * 60
+NOFIX_GAP_MIN_SEC = 5 * 60
 OFF_ROUTE_MIN_M = 500
 EDGE_TOL_SEC = 60
 
@@ -90,22 +92,35 @@ def _hm(utc: int) -> str:
 
 # ── трек → блоки й вікна ─────────────────────────────────────────────
 
-def _ranges(times: list[int]) -> list[tuple[int, int]]:
-    """Шматки треку між розривами ≥ GAP_MIN_SEC (індекси включно)."""
-    if not times:
+def _is_gap(t0: int, t1: int, nofix: list[tuple[int, int]]) -> bool:
+    """Розрив між моментами t0 < t1: довга тиша або пропуск без фіксу GNSS."""
+    dt = t1 - t0
+    if dt >= GAP_MIN_SEC:
+        return True
+    return dt >= NOFIX_GAP_MIN_SEC and any(t0 <= a and b <= t1 for a, b in nofix)
+
+
+def _gap_flags(times: list[int], nofix: list[tuple[int, int]]) -> list[bool]:
+    """gaps[k] — розрив між точками k і k+1."""
+    return [_is_gap(times[k], times[k + 1], nofix) for k in range(len(times) - 1)]
+
+
+def _ranges(n: int, gaps: list[bool]) -> list[tuple[int, int]]:
+    """Шматки треку між розривами (індекси включно)."""
+    if n == 0:
         return []
     out: list[tuple[int, int]] = []
     start = 0
-    for i in range(1, len(times)):
-        if times[i] - times[i - 1] >= GAP_MIN_SEC:
+    for i in range(1, n):
+        if gaps[i - 1]:
             out.append((start, i - 1))
             start = i
-    out.append((start, len(times) - 1))
+    out.append((start, n - 1))
     return out
 
 
-def _has_gap(times: list[int], i: int, j: int) -> bool:
-    return any(times[k + 1] - times[k] >= GAP_MIN_SEC for k in range(max(0, i), min(j, len(times) - 1)))
+def _has_gap(gaps: list[bool], i: int, j: int) -> bool:
+    return any(gaps[k] for k in range(max(0, i), min(j, len(gaps))))
 
 
 def _excursion(track: dict, i: int, j: int, refs: list[int]) -> float:
@@ -274,11 +289,13 @@ def build_parts(
     """
     times = [int(t) for t in track.get("time") or []]
     n = len(times)
+    nofix = track.get("nofix") or []
+    gaps = _gap_flags(times, nofix)
     catalog_by_id = {r["id"]: r for r in catalog}
 
     periods = []
     if routes and n >= 2:
-        periods = detect_route_periods_in_ranges(track, routes, _ranges(times))
+        periods = detect_route_periods_in_ranges(track, routes, _ranges(n, gaps))
     periods.sort(key=lambda p: p["start_utc"])
 
     blocks: list[dict] = []
@@ -346,7 +363,7 @@ def build_parts(
         add(None, None, REASON_NO_TRACK if n == 0 else REASON_NO_ROUTE)
     else:
         first = blocks[0]
-        if times[0] - day_start >= GAP_MIN_SEC or _has_gap(times, 0, first["_start_idx"]):
+        if _is_gap(day_start, times[0], nofix) or _has_gap(gaps, 0, first["_start_idx"]):
             add(None, first, REASON_GAP)
         elif not first["fresh"] and _excursion(
             track, 0, first["_start_idx"], [first["_start_idx"]]
@@ -356,7 +373,7 @@ def build_parts(
         for p, q in zip(blocks, blocks[1:]):
             if (p["uid"], q["uid"]) in split_pairs:
                 add(p, q, REASON_SKIP)
-            elif _has_gap(times, p["_end_idx"], q["_start_idx"]):
+            elif _has_gap(gaps, p["_end_idx"], q["_start_idx"]):
                 add(p, q, REASON_GAP)
             elif not (p["complete"] and q["fresh"]) and _excursion(
                 track, p["_end_idx"], q["_start_idx"], [p["_end_idx"], q["_start_idx"]]
@@ -364,7 +381,7 @@ def build_parts(
                 add(p, q, REASON_OFF_ROUTE)
 
         last = blocks[-1]
-        if data_end - times[-1] >= GAP_MIN_SEC or _has_gap(times, last["_end_idx"], n - 1):
+        if _is_gap(times[-1], data_end, nofix) or _has_gap(gaps, last["_end_idx"], n - 1):
             add(last, None, REASON_GAP)
         elif not last["complete"] and _excursion(
             track, last["_end_idx"], n - 1, [last["_end_idx"]]

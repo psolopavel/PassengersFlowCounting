@@ -14,7 +14,15 @@
         "time":  [...],   # unix (сек)
         "speed": [...],   # км/ч
         "interpolated": [0, ...],  # 1 у точек, добавленных починкой
+        "gnss":  [...],   # статус GNSS точки (normalize_gnss) или None
+        "nofix": [(t0, t1), ...],  # интервалы выброшенных точек без фикса
     }
+
+GNSS пишут парсеры (IO 69 у Teltonika, у остальных протоколов выводится из
+присланных координат). Точки «нет фикса» несут старые или подставленные
+координаты, поэтому в трек не попадают: на их месте остаётся разрыв, а не
+ложная стоянка. Списки, которые собирают трек заново (починка), gnss и nofix
+не переносят — читать их только через fix_flags / track.get.
 """
 
 from __future__ import annotations
@@ -24,6 +32,7 @@ import re
 from datetime import date, time, timedelta
 
 from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
 from app.utils.geo import haversine
@@ -32,12 +41,49 @@ from app.utils.local_tz import combine_local, unix_to_local
 # Имя динамической таблицы приходит из БД, но подставляется в SQL как
 # идентификатор — поэтому строго валидируем формат перед использованием.
 _TABLE_RE = re.compile(r"^[A-Za-z0-9_]+$")
+# Таблицы трека, в которых нет колонки GNSS (старые) — читаем без неё.
+_TABLES_WITHOUT_GNSS: set[str] = set()
 
 # Пробег «скорость × время» — те же пороги, что в servergps/revenue3.php,
 # чтобы километраж совпадал с уже существующей страницей.
 _SPEED_GPS_ERROR_KMH = 190   # точка со скоростью >= — ошибка GPS, отбрасываем
 _SPEED_MOVING_KMH = 2        # средняя скорость пары ниже — стоянка/шум
 _SPEED_MAX_GAP_SEC = 300     # пара точек дальше 5 мин — разрыв, не считаем
+
+# Статус GNSS (Teltonika IO 69). 0 неоднозначен: так же пишется «парсер не
+# передал» (дефолт ParserEngine), поэтому считается неизвестным.
+GNSS_OFF = 0
+GNSS_FIX = 1
+GNSS_NO_FIX = 2
+GNSS_SLEEP = 3
+
+
+def normalize_gnss(raw) -> int | None:
+    """Значение колонки GNSS (varchar) -> 0..3 или None, если не передано/мусор.
+
+    Parser20301 до исправления читал однобайтовый IO 69 двумя байтами, захватывая
+    следующий байт пакета: статус — в старшем байте (257 -> 1, 513 -> 2).
+    """
+    if raw is None:
+        return None
+    try:
+        v = int(float(str(raw).strip()))
+    except ValueError:
+        return None
+    if 0 <= v <= 3:
+        return v
+    if 256 <= v <= 1023:
+        return v >> 8
+    return None
+
+
+def fix_flags(track: dict) -> list[bool]:
+    """Для каждой точки: координаты подтверждены приёмником (фикс или сон на месте)."""
+    n = len(track.get("lat") or [])
+    gnss = track.get("gnss")
+    if not gnss or len(gnss) != n:
+        return [False] * n
+    return [g in (GNSS_FIX, GNSS_SLEEP) for g in gnss]
 
 
 def convert_coord(lat_raw: float, lon_raw: float) -> tuple[float, float] | None:
@@ -97,26 +143,47 @@ def fetch_track(
     if not _TABLE_RE.match(tracker_table):
         raise ValueError(f"invalid tracker table: {tracker_table!r}")
 
-    sql = text(
-        f"SELECT `latitude`, `longtitude`, `speed`, `epochtime` "  # noqa: S608 — имя валидировано
-        f"FROM `{tracker_table}` "
-        f"WHERE `imei` = :tid AND `epochtime` BETWEEN :s AND :e "
-        f"ORDER BY `epochtime` ASC"
-    )
-    rows = gps_db.execute(
-        sql, {"tid": tracker_id, "s": int(start_unix), "e": int(end_unix)}
-    ).all()
+    params = {"tid": tracker_id, "s": int(start_unix), "e": int(end_unix)}
+
+    def select(gnss_col: str):
+        return gps_db.execute(text(
+            f"SELECT `latitude`, `longtitude`, `speed`, `epochtime`, {gnss_col} "  # noqa: S608 — имя валидировано
+            f"FROM `{tracker_table}` "
+            f"WHERE `imei` = :tid AND `epochtime` BETWEEN :s AND :e "
+            f"ORDER BY `epochtime` ASC"
+        ), params).all()
+
+    if tracker_table in _TABLES_WITHOUT_GNSS:
+        rows = select("NULL")
+    else:
+        try:
+            rows = select("`GNSS`")
+        except DBAPIError as exc:
+            if "Unknown column" not in str(exc):
+                raise
+            _TABLES_WITHOUT_GNSS.add(tracker_table)
+            rows = select("NULL")
 
     lat: list[float] = []
     lon: list[float] = []
     tim: list[int] = []
     spd: list[float] = []
+    gns: list[int | None] = []
+    nofix: list[tuple[int, int]] = []
+    run: list[int] | None = None  # текущая серия точек без фикса [t0, t1]
     for r in rows:
         try:
             la_raw = float(r[0])
             lo_raw = float(r[1])
             ep = int(r[3])
         except (TypeError, ValueError):
+            continue
+        g = normalize_gnss(r[4])
+        if g == GNSS_NO_FIX:
+            if run is None:
+                run = [ep, ep]
+            else:
+                run[1] = ep
             continue
         if la_raw == 0 and lo_raw == 0:
             # нулевые координаты — нет фикса GPS, для трека бесполезны
@@ -127,10 +194,16 @@ def fetch_track(
         la, lo = conv
         if la == 0 and lo == 0:
             continue
+        if run is not None:
+            nofix.append((run[0], run[1]))
+            run = None
         lat.append(la)
         lon.append(lo)
         spd.append(float(r[2]) if r[2] is not None else 0.0)
         tim.append(ep)
+        gns.append(g)
+    if run is not None:
+        nofix.append((run[0], run[1]))
 
     return {
         "lat": lat,
@@ -138,6 +211,8 @@ def fetch_track(
         "time": tim,
         "speed": spd,
         "interpolated": [0] * len(lat),
+        "gnss": gns,
+        "nofix": nofix,
     }
 
 
@@ -153,7 +228,8 @@ def get_day_track(
     """
     tracker = get_tracker(gps_db, imei)
     if tracker is None:
-        return {"lat": [], "lon": [], "time": [], "speed": [], "interpolated": []}, None
+        return {"lat": [], "lon": [], "time": [], "speed": [], "interpolated": [],
+                "gnss": [], "nofix": []}, None
     tracker_id, table = tracker
     track = fetch_track(gps_db, tracker_id, table, start_unix, end_unix)
     return track, table

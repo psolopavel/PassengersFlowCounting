@@ -327,7 +327,7 @@ function lastClosedBefore(w, utc) {
     return best;
 }
 
-/** Стан ділянки для списку: {state: "ok" | "empty" | "error", text}. */
+/** Стан ділянки для списку: {state: "ok" | "empty" | "error", text — лише для помилки}. */
 function windowStatus(w) {
     const list = tripsIn(w);
     const engaged = list.some((t) => !isBareLeft(t));
@@ -357,9 +357,7 @@ function windowStatus(w) {
                 + "Почніть останню ходку цим маршрутом і не завершуйте — вона продовжиться за треком.",
         };
     }
-    if (last && continuesIntoRight(last)) return { state: "ok", text: "Стикується з треком після ділянки ✓" };
-    if (!engaged) return { state: "empty", text: "Не розмічено — якщо в ці години були поїздки, додайте їх «+»." };
-    return { state: "ok", text: "Розмічено ✓" };
+    return { state: engaged || (last && continuesIntoRight(last)) ? "ok" : "empty", text: "" };
 }
 
 // ── вибір ────────────────────────────────────────────────────────────
@@ -984,21 +982,15 @@ function segButton(item, fromLabel, toLabel, t0, t1, onClick) {
 
 /**
  * Правка вибраної відмітки: час (з плеєра), видалення; для першої / кінцевої —
- * ще й зупинка ходки. Якір продовження з треку не змінюється.
+ * ще й зупинка ходки. Якір продовження з треку не змінюється (null).
  */
 function markEditRow(trip, idx) {
+    const mark = trip.marks[idx];
+    if (mark.anchor) return null;
     const row = document.createElement("div");
     row.className = "cm-edit";
-    const mark = trip.marks[idx];
     const isFirst = idx === 0;
     const isEnd = trip.closed && idx === trip.marks.length - 1;
-    if (mark.anchor) {
-        const note = document.createElement("span");
-        note.className = "cm-edit-note";
-        note.textContent = "кінець треку — маршрут і зупинку визначено за треком";
-        row.appendChild(note);
-        return row;
-    }
     if (isFirst) {
         const routeSel = document.createElement("select");
         routeSel.className = "cm-edit-route";
@@ -1042,8 +1034,7 @@ function blockEl(block, visible) {
     head.className = "cc-trip-head";
     const done = segs.filter((s) => isFilled(autoSel(s))).length;
     head.innerHTML =
-        `<span class="cc-trip-name">${escapeHtml(routeName(block.route_id, block.route_name))}`
-        + ` <span class="ch-tag" title="Відрізки визначено за GPS-треком">трек</span></span>`
+        `<span class="cc-trip-name">${escapeHtml(routeName(block.route_id, block.route_name))}</span>`
         + `<span class="cc-trip-meta">${done}/${segs.length}</span>`;
     el.appendChild(head);
     for (const seg of segs) {
@@ -1065,21 +1056,24 @@ function tripEl(trip, w) {
     head.className = "cc-trip-head";
     const closedSegs = segs.filter((s) => s.to);
     const done = closedSegs.filter(isFilled).length;
-    let meta = trip.closed || (resolved && resolved.continues) ? `${done}/${closedSegs.length}` : "триває";
+    let meta = `${done}/${closedSegs.length}`;
     let metaTitle = "";
+    let warn = false;
     if (isUnbound(trip.route_id)) {
         meta = "⚠ маршрут";
         metaTitle = "Маршрут більше не прив'язаний до машини — змініть маршрут ходки (клік на перший відрізок)";
+        warn = true;
     } else if (trip.closed && !resolved) {
         meta = "⚠ зупинки";
         metaTitle = "Кінцева зупинка має бути далі за маршрутом, ніж початкова";
+        warn = true;
     }
-    const tag = trip.from_left
-        ? ` <span class="ch-tag" title="Ходка почалась на треку перед ділянкою">продовження</span>`
-        : "";
-    head.innerHTML =
-        `<span class="cc-trip-name">${escapeHtml(routeName(trip.route_id, trip.route_name))}${tag}</span>`
-        + `<span class="cc-trip-meta"${metaTitle ? ` title="${escapeHtml(metaTitle)}"` : ""}>${meta}</span>`;
+    // Продовження ходки з треку: маршрут видно в блоці треку над ділянкою.
+    if (!trip.from_left || warn) {
+        head.innerHTML =
+            `<span class="cc-trip-name">${trip.from_left ? "" : escapeHtml(routeName(trip.route_id, trip.route_name))}</span>`
+            + `<span class="cc-trip-meta"${metaTitle ? ` title="${escapeHtml(metaTitle)}"` : ""}>${meta}</span>`;
+    }
     if (!readOnly) {
         const tools = document.createElement("span");
         tools.className = "cm-trip-tools";
@@ -1092,23 +1086,17 @@ function tripEl(trip, w) {
         } else if (!isBareLeft(trip)) {
             tools.appendChild(iconButton("✕", "Скинути зупинки і кінець продовження", () => deleteTrip(trip), true));
         }
-        head.appendChild(tools);
+        if (tools.childElementCount) head.appendChild(tools);
     }
-    el.appendChild(head);
-
-    if (isBareLeft(trip) && !(resolved && resolved.continues)) {
-        const note = document.createElement("div");
-        note.className = "ch-note";
-        note.textContent = "Ходка з треку обірвалась тут. Якщо вона тривала — додайте зупинки «+» і позначте кінець.";
-        el.appendChild(note);
-    }
+    if (head.childElementCount) el.appendChild(head);
 
     for (const seg of segs) {
         const idx = trip.marks.indexOf(seg.from);
         const toLabel = seg.to ? labels[idx + 1] + (seg.to.virtual ? " (трек)" : "") : "…";
         el.appendChild(segButton(seg, labels[idx], toLabel, seg.from.utc, seg.to ? seg.to.utc : null,
             () => selectMark(trip.uid, seg.from.uid)));
-        if (isSelected(seg) && !readOnly) el.appendChild(markEditRow(trip, idx));
+        const edit = isSelected(seg) && !readOnly ? markEditRow(trip, idx) : null;
+        if (edit) el.appendChild(edit);
     }
 
     if (trip.closed && trip.marks.length) {
@@ -1122,7 +1110,8 @@ function tripEl(trip, w) {
             + `<span class="cc-seg-time">${clockHm(last.utc)}</span>`;
         end.addEventListener("click", () => selectMark(trip.uid, last.uid));
         el.appendChild(end);
-        if (active && !readOnly) el.appendChild(markEditRow(trip, lastIdx));
+        const edit = active && !readOnly ? markEditRow(trip, lastIdx) : null;
+        if (edit) el.appendChild(edit);
     }
     return el;
 }
@@ -1136,27 +1125,19 @@ function windowEl(w) {
     const head = document.createElement("button");
     head.type = "button";
     head.className = "ch-window-head" + (sel && sel.kind === "window" && sel.uid === w.uid ? " is-active" : "");
-    head.title = "Показати ділянку у плеєрі";
-    head.innerHTML =
-        `<span class="ch-window-title">Ручна ділянка · ${escapeHtml(REASONS[w.reason] || w.reason)}</span>`
-        + `<span class="cc-seg-time">${clockHm(w.start_utc)} – ${clockHm(w.end_utc)}</span>`;
+    head.title = `${REASONS[w.reason] || w.reason} — показати ділянку у плеєрі`;
+    head.innerHTML = `<span class="cc-seg-time">${clockHm(w.start_utc)} – ${clockHm(w.end_utc)}</span>`;
     head.addEventListener("click", () => selectWindow(w.uid));
     el.appendChild(head);
 
-    const st = document.createElement("div");
-    st.className = "ch-window-status";
-    st.textContent = status.text;
-    el.appendChild(st);
+    if (status.text) {
+        const st = document.createElement("div");
+        st.className = "ch-window-status";
+        st.textContent = status.text;
+        el.appendChild(st);
+    }
 
     for (const trip of tripsIn(w)) el.appendChild(tripEl(trip, w));
-
-    if (w.right) {
-        const after = document.createElement("div");
-        after.className = "ch-window-after";
-        after.textContent = `Далі трек: «${routeName(w.right.route_id)}» від «${stopName(w.right.route_id, w.right.stop_id)}» `
-            + `о ${clockHm(w.right.utc)}`;
-        el.appendChild(after);
-    }
     return el;
 }
 

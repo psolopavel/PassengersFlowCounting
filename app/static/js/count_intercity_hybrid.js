@@ -39,6 +39,8 @@ const REASONS = {
 const blocks = (cfg.autoBlocks || []).slice().sort((a, b) => a.start_utc - b.start_utc);
 const windows = (cfg.windows || []).slice().sort((a, b) => a.start_utc - b.start_utc);
 const windowById = new Map(windows.map((w) => [w.uid, w]));
+// Порожні проїзди, які рахувальник прибрав: вони більше не розрізають день.
+let dismissals = (cfg.blockDismissals || []).map((d) => ({ ...d }));
 const autoSegs = (cfg.autoSegments || []).map((s) => ({ ...s }))
     .sort((a, b) => a.period_start_utc - b.period_start_utc);
 const autoByKey = new Map(autoSegs.map((s) => [s.seg_key, s]));
@@ -605,17 +607,29 @@ function reopenTrip(trip) {
     return trip;
 }
 
-/** Рейс перед ділянкою закінчився на треку: продовження не розмічається і не йде у звіт. */
+/** Рейс перед ділянкою закінчився на треку: продовження не розмічається і не йде у звіт.
+ * Порожній проїзд без відрізків прибирається зовсім — попередня ручна ділянка
+ * тягнеться до наступного справжнього треку.
+ */
 function endTripOnTrack(trip) {
     if (!trip.from_left || trip.ended_on_track) return;
     const name = routeName(trip.route_id, trip.route_name);
+    const block = emptyLeftBlock(trip);
     const extra = operatorMarks(trip).length
         ? " Зупинки, які ви встигли позначити на цьому продовженні, зникнуть."
         : "";
-    if (!window.confirm(
-        `Рейс «${name}» закінчився на треку і в цій ділянці не продовжувався? `
-        + `Його не буде у списку відрізків і у звіті. Відрізки треку до ділянки залишаться.${extra}`,
-    )) return;
+    const question = block
+        ? `Рейс «${name}» не продовжувався, а проїзд без відрізків прибрати? `
+            + `Попередню ручну ділянку можна буде розмічати до наступного треку.${extra}`
+        : `Рейс «${name}» закінчився на треку і в цій ділянці не продовжувався? `
+            + `Його не буде у списку відрізків і у звіті. Відрізки треку до ділянки залишаться.${extra}`;
+    if (!window.confirm(question)) return;
+    if (block && collapseEmptyEnded(trip, block)) {
+        if (sel && sel.kind === "mark" && sel.tripUid === trip.uid) sel = null;
+        changed();
+        applyWindow();
+        return;
+    }
     trip.ended_on_track = true;
     trip.marks = trip.marks.filter((m) => m.anchor);
     if (trip.marks[0]) trip.marks[0].count_after = null;
@@ -624,6 +638,82 @@ function endTripOnTrack(trip) {
     if (sel && sel.kind === "mark" && sel.tripUid === trip.uid) sel = null;
     changed();
     applyWindow();
+}
+
+function emptyLeftBlock(trip) {
+    const w = windowOf(trip);
+    const uid = w && w.left && w.left.block_uid;
+    const block = uid && blocks.find((b) => b.uid === uid);
+    if (!block || autoSegs.some((s) => s.block_uid === block.uid)) return null;
+    return block;
+}
+
+function cloneData(value) {
+    return JSON.parse(JSON.stringify(value));
+}
+
+/** Склеює вікна обабіч порожнього проїзду. true — розріз прибрано. */
+function collapseEmptyEnded(trip, block) {
+    const after = windowOf(trip);
+    if (!after || !block) return false;
+    const before = windows.find((w) => w !== after && w.right && w.right.block_uid === block.uid);
+    if (!before) return false;
+    dismissals.push({
+        block_uid: block.uid,
+        before_uid: before.uid,
+        before_right: cloneData(before.right),
+        before_end: before.end_utc,
+        after_window: after,
+        route_id: block.route_id,
+        route_name: routeName(block.route_id, block.route_name),
+    });
+    before.right = after.right;
+    before.end_utc = after.end_utc;
+    for (const t of trips) {
+        if (t !== trip && t.window_uid === after.uid) t.window_uid = before.uid;
+    }
+    trips = trips.filter((t) => t !== trip);
+    const idx = windows.indexOf(after);
+    if (idx >= 0) windows.splice(idx, 1);
+    windowById.delete(after.uid);
+    block.dismissed = true;
+    return true;
+}
+
+function restoreDismissal(snap) {
+    const before = windowById.get(snap.before_uid);
+    const after = snap.after_window;
+    if (!before || !after) return;
+    before.right = snap.before_right;
+    before.end_utc = snap.before_end;
+    if (!windowById.has(after.uid)) {
+        windows.push(after);
+        windows.sort((a, b) => a.start_utc - b.start_utc);
+        windowById.set(after.uid, after);
+    }
+    for (const t of trips) {
+        if (t.window_uid === before.uid && tripStart(t) >= after.start_utc) t.window_uid = after.uid;
+    }
+    const block = blocks.find((b) => b.uid === snap.block_uid);
+    if (block) block.dismissed = false;
+    const left = after.left;
+    if (left && left.open && !trips.some((t) => t.window_uid === after.uid && t.from_left)) {
+        trips.push({
+            uid: newUid(),
+            window_uid: after.uid,
+            from_left: true,
+            ended_on_track: false,
+            route_id: left.route_id,
+            route_name: snap.route_name || routeName(left.route_id),
+            closed: false,
+            start_stop_id: left.stop_id,
+            end_stop_id: null,
+            marks: [{ uid: newUid(), utc: left.utc, count_after: null, anchor: true }],
+        });
+    }
+    const at = dismissals.indexOf(snap);
+    if (at >= 0) dismissals.splice(at, 1);
+    changed();
 }
 
 function restoreTripFromTrack(trip) {
@@ -1166,6 +1256,25 @@ function tripEl(trip, w) {
     return el;
 }
 
+function dismissalNote(snap) {
+    const row = document.createElement("div");
+    row.className = "ch-ended";
+    const text = document.createElement("span");
+    const name = snap.route_name || routeName(snap.route_id);
+    text.textContent = `«${name}» прибрано — ділянка до наступного треку`;
+    row.appendChild(text);
+    if (!readOnly) {
+        const back = document.createElement("button");
+        back.type = "button";
+        back.className = "cm-end-on-track cm-end-on-track-back";
+        back.textContent = "Повернути";
+        back.title = "Знову розділити ділянку цим проїздом";
+        back.addEventListener("click", () => restoreDismissal(snap));
+        row.appendChild(back);
+    }
+    return row;
+}
+
 function endedNote(trip) {
     const row = document.createElement("div");
     row.className = "ch-ended";
@@ -1203,6 +1312,9 @@ function windowEl(w) {
         st.className = "ch-window-status";
         st.textContent = status.text;
         el.appendChild(st);
+    }
+    for (const snap of dismissals) {
+        if (snap.before_uid === w.uid) el.appendChild(dismissalNote(snap));
     }
 
     for (const trip of tripsIn(w)) {
@@ -1294,6 +1406,10 @@ function drawOverlay(ctx, p) {
 
 // ── збереження ───────────────────────────────────────────────────────
 
+function dismissalsPayload() {
+    return dismissals.map((d) => ({ block_uid: d.block_uid }));
+}
+
 function chronologyPayload() {
     syncCountInput();
     return trips.map((t) => ({
@@ -1330,7 +1446,7 @@ const player = new MultiCamPlayer({
     sourcePriority: cfg.sourcePriority,
     drawOverlay,
     buildPayload(pendingSec) {
-        return { ...payloadBase(pendingSec), counts: countsPayload(), chronology: chronologyPayload() };
+        return { ...payloadBase(pendingSec), counts: countsPayload(), chronology: chronologyPayload(), dismissals: dismissalsPayload() };
     },
 });
 
@@ -1370,6 +1486,7 @@ async function save() {
                 ...payloadBase(player.takePendingTimeSec()),
                 counts: countsPayload(),
                 chronology: chronologyPayload(),
+                dismissals: dismissalsPayload(),
             }),
         });
         const j = await resp.json();
@@ -1484,6 +1601,14 @@ function bindEditor() {
 player.bindControls();
 bindSidebarToggle();
 bindEditor();
+for (const snap of dismissals) {
+    const block = blocks.find((b) => b.uid === snap.block_uid);
+    if (block) block.dismissed = true;
+}
+for (const trip of trips.filter(endedOnTrack)) {
+    const block = emptyLeftBlock(trip);
+    if (block && !block.dismissed) collapseEmptyEnded(trip, block);
+}
 sortTrips();
 render();
 

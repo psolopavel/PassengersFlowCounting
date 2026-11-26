@@ -397,21 +397,27 @@ def save_hybrid(
     *,
     counts=None,
     chronology: list | None = None,
+    dismissals: list | None = None,
     add_time_sec: int = 0,
 ) -> CountingSession:
     """Автосейв / фінальне збереження гібриду: count авто-відрізків + ходки вікон.
 
     counts / chronology = None — відповідна частина не змінюється.
+    dismissals — які порожні проїзди не розрізають день (None — не чіпати).
     """
     data = load_data(session) or {}
-    if counts is not None or isinstance(chronology, list):
-        hybrid_svc.apply_counts(data, counts)
+    if counts is not None or isinstance(chronology, list) or isinstance(dismissals, list):
+        if counts is not None:
+            hybrid_svc.apply_counts(data, counts)
         if isinstance(chronology, list):
-            trips = hybrid_svc.sanitize_chronology(
-                chronology, data.get("windows") or [], data.get("routes_catalog") or []
-            )
+            chronology = list(chronology)
         else:
-            trips = data.get("chronology") or []
+            chronology = list(data.get("chronology") or [])
+        if isinstance(dismissals, list):
+            hybrid_svc.sync_block_dismissals(data, dismissals, chronology)
+        trips = hybrid_svc.sanitize_chronology(
+            chronology, data.get("windows") or [], data.get("routes_catalog") or []
+        )
         data = hybrid_svc.apply_chronology(data, trips)
     data = _preserve_session_flags(session, data)
     return save_progress(db, session, data=data, add_time_sec=add_time_sec)

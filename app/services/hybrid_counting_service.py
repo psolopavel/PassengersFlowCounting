@@ -22,7 +22,9 @@
     відмітка — сам якір (anchor), кількість після нього вводить рахувальник.
     Рахувальник може позначити ended_on_track: рейс закінчився на треку і в
     розрив не продовжувався. Така ходка лишається лише позначкою, щоб її не
-    створили знову; у список відрізків і у звіт вона не потрапляє.
+    створили знову; у список відрізків і у звіт вона не потрапляє. Якщо цей
+    проїзд не має жодного відрізка, він більше не розрізає день: вікна обабіч
+    склеюються до наступного справжнього треку (block_dismissals).
   * Незавершена остання ходка вікна переходить у проїзд після вікна, якщо
     маршрут той самий і зупинка після вікна не раніше за маршрутом.
   * Проміжні зупинки ходки розподіляються лінійно за часом між найближчими
@@ -210,6 +212,118 @@ def _auto_segment(route: dict, block_uid: str, a: dict, b: dict, start: int, end
     if assumed:
         seg["assumed_start"] = True
     return seg
+
+
+def _copy(value):
+    if isinstance(value, dict):
+        return {k: _copy(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_copy(v) for v in value]
+    return value
+
+
+def _block_has_segments(data: dict, block_uid: str) -> bool:
+    return any(s.get("block_uid") == block_uid for s in data.get("auto_segments") or [])
+
+
+def collapse_empty_block(data: dict, block_uid: str, chronology: list | None) -> bool:
+    """Порожній відхилений проїзд більше не розрізає день: вікна обабіч стають одним.
+
+    Хронологію вікна після проїзду переносить у попереднє, крім позначки
+    ended_on_track. Знімок межі лишається в block_dismissals для скасування.
+    """
+    uid = str(block_uid or "")
+    blocks = {b["uid"]: b for b in data.get("auto_blocks") or []}
+    block = blocks.get(uid)
+    windows: list[dict] = data.get("windows") or []
+    if block is None or _block_has_segments(data, uid):
+        return False
+    if any(d.get("block_uid") == uid for d in data.get("block_dismissals") or []):
+        return False
+    after = next((w for w in windows if (w.get("left") or {}).get("block_uid") == uid), None)
+    before = next(
+        (w for w in windows if w is not after and (w.get("right") or {}).get("block_uid") == uid),
+        None,
+    )
+    if after is None or before is None:
+        return False
+    data.setdefault("block_dismissals", []).append({
+        "block_uid": uid,
+        "before_uid": before["uid"],
+        "before_right": _copy(before.get("right")),
+        "before_end": before["end_utc"],
+        "after_window": _copy(after),
+        "route_id": block.get("route_id"),
+        "route_name": block.get("route_name") or "",
+    })
+    before["right"] = after.get("right")
+    before["end_utc"] = after["end_utc"]
+    windows.remove(after)
+    block["dismissed"] = True
+    if chronology is not None:
+        kept = []
+        for trip in chronology:
+            if not isinstance(trip, dict):
+                continue
+            if trip.get("window_uid") == after["uid"]:
+                if trip.get("from_left") and trip.get("ended_on_track"):
+                    continue
+                trip["window_uid"] = before["uid"]
+            kept.append(trip)
+        chronology[:] = kept
+    return True
+
+
+def restore_empty_block(data: dict, block_uid: str) -> None:
+    """Повертає розріз, який прибрала collapse_empty_block."""
+    snaps = data.get("block_dismissals") or []
+    snap = next((d for d in snaps if d.get("block_uid") == block_uid), None)
+    if snap is None:
+        return
+    windows: list[dict] = data.setdefault("windows", [])
+    before = next((w for w in windows if w.get("uid") == snap.get("before_uid")), None)
+    after = snap.get("after_window")
+    if before is not None and isinstance(after, dict):
+        before["right"] = snap.get("before_right")
+        before["end_utc"] = snap.get("before_end")
+        if not any(w.get("uid") == after.get("uid") for w in windows):
+            windows.append(_copy(after))
+        windows.sort(key=lambda w: w["start_utc"])
+    for block in data.get("auto_blocks") or []:
+        if block.get("uid") == block_uid:
+            block.pop("dismissed", None)
+    data["block_dismissals"] = [d for d in snaps if d.get("block_uid") != block_uid]
+
+
+def sync_block_dismissals(data: dict, dismissals, chronology: list | None) -> None:
+    """Список із браузера — які порожні проїзди лишаються прибраними."""
+    if not isinstance(dismissals, list):
+        return
+    wanted = {str(d.get("block_uid")) for d in dismissals if isinstance(d, dict) and d.get("block_uid")}
+    for snap in list(data.get("block_dismissals") or []):
+        if str(snap.get("block_uid")) not in wanted:
+            restore_empty_block(data, str(snap.get("block_uid")))
+    for raw in dismissals:
+        if isinstance(raw, dict) and raw.get("block_uid"):
+            collapse_empty_block(data, str(raw["block_uid"]), chronology)
+
+
+def carry_dismissals(old: dict, new: dict, chronology: list, time_tol: int) -> None:
+    """Після перезбору треку знову склеює вікна навколо тих самих порожніх проїздів."""
+    for snap in old.get("block_dismissals") or []:
+        route_id = snap.get("route_id")
+        when = ((snap.get("after_window") or {}).get("left") or {}).get("utc")
+        if route_id is None or when is None:
+            continue
+        for block in new.get("auto_blocks") or []:
+            if block.get("route_id") != route_id or block.get("dismissed"):
+                continue
+            if _block_has_segments(new, block["uid"]):
+                continue
+            if (abs(int(block.get("start_utc") or 0) - int(when)) <= time_tol
+                    or abs(int(block.get("end_utc") or 0) - int(when)) <= time_tol):
+                collapse_empty_block(new, block["uid"], chronology)
+                break
 
 
 def _block_segments(route: dict, block: dict, events: list[dict], track: dict,
@@ -922,7 +1036,9 @@ def merge_rebuild(old: dict | None, new: dict, time_tol: int) -> dict:
             trip["end_stop_id"] = None
         kept.append(trip)
 
-    chronology = sanitize_chronology(kept, new["windows"], new["routes_catalog"])
+    chronology = kept
+    carry_dismissals(old, new, chronology, time_tol)
+    chronology = sanitize_chronology(chronology, new["windows"], new["routes_catalog"])
     if removed:
         removed.sort(key=lambda m: m["utc"])
         listed = ", ".join(

@@ -260,6 +260,7 @@ def count_view(
             config["autoSegments"] = data.get("auto_segments") or []
             config["windows"] = data.get("windows") or []
             config["chronology"] = data.get("chronology") or []
+            config["blockDismissals"] = data.get("block_dismissals") or []
             config["dataEndUtc"] = data.get("data_end_utc")
             config["trackStartUtc"] = data.get("track_start_utc")
             config["trackEndUtc"] = data.get("track_end_utc")
@@ -440,6 +441,7 @@ async def count_intercity_save(
             db, session,
             counts=counts,
             chronology=chronology,
+            dismissals=body.get("dismissals") if isinstance(body.get("dismissals"), list) else None,
             add_time_sec=int(body.get("add_time_sec") or 0),
         )
         errors = hybrid_svc.validate_for_ready(css.load_data(session), max_people)
@@ -929,6 +931,7 @@ async def count_save(
             db, session,
             counts=counts,
             chronology=chronology,
+            dismissals=body.get("dismissals") if isinstance(body.get("dismissals"), list) else None,
             add_time_sec=int(body.get("add_time_sec") or 0),
         )
     elif kind == "intercity" and manual_svc.is_manual(data):

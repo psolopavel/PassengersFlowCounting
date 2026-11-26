@@ -1028,6 +1028,9 @@ function markEditRow(trip, idx) {
 
 function blockEl(block, visible) {
     const segs = visible.filter((s) => s.block_uid === block.uid);
+    // Проїзд з однієї зупинки (розворот на кінцевій) не дає відрізків.
+    // Заголовок «0/0» поряд із наступним рейсом того ж маршруту лише плутає.
+    if (!segs.length) return null;
     const el = document.createElement("div");
     el.className = "cc-trip ch-block";
     const head = document.createElement("div");
@@ -1162,7 +1165,10 @@ function renderSidebar() {
         ...blocks.map((b) => ({ utc: b.start_utc, order: 1, el: () => blockEl(b, visible) })),
         ...windows.map((w) => ({ utc: w.start_utc, order: 0, el: () => windowEl(w) })),
     ].sort((a, b) => a.utc - b.utc || a.order - b.order);
-    for (const item of items) body.appendChild(item.el());
+    for (const item of items) {
+        const node = item.el();
+        if (node) body.appendChild(node);
+    }
 
     // Прокручуємо лише список (scrollIntoView зсунув би й саму сторінку).
     const active = body.querySelector(".is-active");

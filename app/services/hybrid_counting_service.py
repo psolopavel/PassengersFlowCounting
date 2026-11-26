@@ -20,6 +20,9 @@
   * Перша ходка вікна продовжує проїзд перед ним (from_left), якщо той
     закінчився не на кінцевій: маршрут і початкова зупинка — з якоря, перша
     відмітка — сам якір (anchor), кількість після нього вводить рахувальник.
+    Рахувальник може позначити ended_on_track: рейс закінчився на треку і в
+    розрив не продовжувався. Така ходка лишається лише позначкою, щоб її не
+    створили знову; у список відрізків і у звіт вона не потрапляє.
   * Незавершена остання ходка вікна переходить у проїзд після вікна, якщо
     маршрут той самий і зупинка після вікна не раніше за маршрутом.
   * Проміжні зупинки ходки розподіляються лінійно за часом між найближчими
@@ -40,8 +43,8 @@
     windows         — [{uid, start_utc, end_utc, reason, left, right}];
                       left / right: {block_uid, route_id, stop_id, utc, km,
                       edge_utc, edge_km, open};
-    chronology      — ходки вікон: [{uid, window_uid, from_left, route_id,
-                        route_name, closed, start_stop_id, end_stop_id,
+    chronology      — ходки вікон: [{uid, window_uid, from_left, ended_on_track,
+                        route_id, route_name, closed, start_stop_id, end_stop_id,
                         marks: [{uid, utc, count_after, anchor?}]}];
     segments, route_periods — зведення авто- і ручних відрізків у форматі режиму
                       auto (source: "track" | "manual"), тому FIFO, зведення,
@@ -426,7 +429,11 @@ def _wants_left_trip(window: dict) -> bool:
 
 def sanitize_chronology(raw, windows: list[dict], catalog: list[dict]) -> list[dict]:
     """Ходки вікон з браузера → канонічний вигляд; у кожному вікні з відкритим
-    лівим якорем рівно одна ходка from_left (з якорем першою відміткою)."""
+    лівим якорем рівно одна ходка from_left (з якорем першою відміткою).
+
+    ended_on_track на цій ходці означає, що рейс закінчився на треку: якір
+    лишається, щоб продовження не створилось знову, зупинки розриву зникають.
+    """
     windows_by_uid = {w["uid"]: w for w in windows}
     routes = {r["id"]: r for r in catalog}
     seen: set[str] = set()
@@ -450,14 +457,21 @@ def sanitize_chronology(raw, windows: list[dict], catalog: list[dict]) -> list[d
             anchor = next((m for m in trip["marks"] if m["uid"] == str(raw_anchor.get("uid"))), None)
         rest = [m for m in trip["marks"] if m is not anchor]
         from_left = bool(t.get("from_left")) and _wants_left_trip(window)
+        ended_on_track = from_left and bool(t.get("ended_on_track"))
         if from_left:
             left = window["left"]
-            trip["marks"] = [{
+            anchor_mark = {
                 "uid": anchor["uid"] if anchor else _new_uid(seen),
                 "utc": left["utc"],
-                "count_after": anchor["count_after"] if anchor else None,
+                "count_after": None if ended_on_track else (anchor["count_after"] if anchor else None),
                 "anchor": True,
-            }] + [m for m in rest if m["utc"] > left["utc"]]
+            }
+            if ended_on_track:
+                trip["marks"] = [anchor_mark]
+                trip["closed"] = False
+                trip["end_stop_id"] = None
+            else:
+                trip["marks"] = [anchor_mark] + [m for m in rest if m["utc"] > left["utc"]]
             trip["route_id"] = left["route_id"]
             trip["start_stop_id"] = left["stop_id"]
         else:
@@ -466,6 +480,7 @@ def sanitize_chronology(raw, windows: list[dict], catalog: list[dict]) -> list[d
             continue
         trip["window_uid"] = window["uid"]
         trip["from_left"] = from_left
+        trip["ended_on_track"] = ended_on_track
         trip["route_name"] = (routes.get(trip["route_id"]) or {}).get("name") or trip["route_name"]
         trips.append(trip)
 
@@ -662,7 +677,7 @@ def apply_chronology(data: dict, chronology: list[dict]) -> dict:
                 trip_segs[tid].append(dict(seg))
             continue
         window = item
-        trips = by_window.get(window["uid"], [])
+        trips = [t for t in by_window.get(window["uid"], []) if not t.get("ended_on_track")]
         carry = None
         for i, trip in enumerate(trips):
             route = routes.get(trip["route_id"])
@@ -781,7 +796,7 @@ def validate_for_ready(data: dict | None, max_people: int) -> list[dict]:
 
     by_window = _trips_by_window(data.get("chronology") or [])
     for window in data.get("windows") or []:
-        trips = by_window.get(window["uid"], [])
+        trips = [t for t in by_window.get(window["uid"], []) if not t.get("ended_on_track")]
         span = f"{_hm(window['start_utc'])}–{_hm(window['end_utc'])}"
         engaged = any(not _is_bare_left(t) for t in trips)
         for i, trip in enumerate(trips):

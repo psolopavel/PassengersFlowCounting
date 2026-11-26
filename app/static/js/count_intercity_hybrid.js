@@ -3,10 +3,11 @@
  * вводить лише кількість людей), а ділянки без треку чи поза маршрутом (windows)
  * розмічаються ходками, як у ручній хронології.
  *
- * Ходки ділянок — trips: [{uid, window_uid, from_left, route_id, route_name, closed,
- * start_stop_id, end_stop_id, marks: [{uid, utc, count_after, anchor?}]}].
+ * Ходки ділянок — trips: [{uid, window_uid, from_left, ended_on_track, route_id, route_name,
+ * closed, start_stop_id, end_stop_id, marks: [{uid, utc, count_after, anchor?}]}].
  * Ходка from_left — продовження проїзду з треку перед ділянкою: її перша відмітка —
- * якір (кінець треку), маршрут і початкова зупинка незмінні. Незавершена остання
+ * якір (кінець треку), маршрут і початкова зупинка незмінні. ended_on_track — рейс
+ * закінчився на треку: продовження прибране зі списку і зі звіту. Незавершена остання
  * ходка ділянки переходить у трек після неї (continuesIntoRight), її останній
  * відрізок закінчується на першій зупинці після ділянки.
  *
@@ -46,6 +47,7 @@ let trips = (cfg.chronology || []).filter((t) => windowById.has(t.window_uid)).m
     uid: t.uid || newUid(),
     window_uid: t.window_uid,
     from_left: !!t.from_left,
+    ended_on_track: !!(t.from_left && t.ended_on_track),
     route_id: t.route_id,
     route_name: t.route_name || "",
     closed: !!t.closed,
@@ -86,6 +88,7 @@ const windowOf = (trip) => windowById.get(trip.window_uid);
 const inverseOf = (routeId) => routeById.get((routeById.get(routeId) || {}).inverse_route_id) || null;
 const operatorMarks = (t) => t.marks.filter((m) => !m.anchor);
 const isBareLeft = (t) => t.from_left && !t.closed && !operatorMarks(t).length;
+const endedOnTrack = (t) => !!(t.from_left && t.ended_on_track);
 
 function routeName(routeId, fallback = "") {
     const r = routeById.get(routeId);
@@ -130,8 +133,13 @@ function tripsIn(w) {
         .sort((a, b) => (a.from_left === b.from_left ? tripStart(a) - tripStart(b) : (a.from_left ? -1 : 1)));
 }
 
+/** Ходки ділянки, які ще треба розмічати. Рейс, що закінчився на треку, сюди не входить. */
+function liveTripsIn(w) {
+    return tripsIn(w).filter((t) => !endedOnTrack(t));
+}
+
 function isLastIn(trip) {
-    const list = tripsIn(windowOf(trip));
+    const list = liveTripsIn(windowOf(trip));
     return list[list.length - 1] === trip;
 }
 
@@ -259,7 +267,7 @@ function tripSegments(trip) {
 function continuedBlocks() {
     const out = new Set();
     for (const w of windows) {
-        const list = tripsIn(w);
+        const list = liveTripsIn(w);
         const last = list[list.length - 1];
         if (last && w.right && continuesIntoRight(last)) out.add(w.right.block_uid);
     }
@@ -308,20 +316,20 @@ const windowAt = (utc) => windows.find((w) => utc > w.start_utc && utc < w.end_u
 
 // Ходка ділянки, всередині якої лежить utc (для відкритої — будь-що після початку).
 function tripCovering(w, utc) {
-    return tripsIn(w).find((t) => t.marks.length && utc >= tripStart(t)
+    return liveTripsIn(w).find((t) => t.marks.length && utc >= tripStart(t)
         && (!t.closed || utc < tripEnd(t))) || null;
 }
 
 // Межа, за яку trip не може тягнутися: початок наступної ходки ділянки або кінець ділянки.
 function tripLimit(trip) {
     const w = windowOf(trip);
-    const starts = tripsIn(w).filter((t) => t !== trip && tripStart(t) > tripStart(trip)).map(tripStart);
+    const starts = liveTripsIn(w).filter((t) => t !== trip && tripStart(t) > tripStart(trip)).map(tripStart);
     return Math.min(w.end_utc, ...starts);
 }
 
 function lastClosedBefore(w, utc) {
     let best = null;
-    for (const t of tripsIn(w)) {
+    for (const t of liveTripsIn(w)) {
         if (t.closed && t.marks.length && tripEnd(t) <= utc && (!best || tripEnd(t) > tripEnd(best))) best = t;
     }
     return best;
@@ -329,7 +337,7 @@ function lastClosedBefore(w, utc) {
 
 /** Стан ділянки для списку: {state: "ok" | "empty" | "error", text — лише для помилки}. */
 function windowStatus(w) {
-    const list = tripsIn(w);
+    const list = liveTripsIn(w);
     const engaged = list.some((t) => !isBareLeft(t));
     const right = w.right;
     for (const [i, trip] of list.entries()) {
@@ -469,6 +477,7 @@ function isSelected(item) {
 function navList() {
     const list = visibleAutoSegs().map((seg) => ({ utc: seg.period_start_utc, item: autoSel(seg) }));
     for (const trip of trips) {
+        if (endedOnTrack(trip)) continue;
         for (const seg of tripSegments(trip)) list.push({ utc: seg.from.utc, item: seg });
     }
     return list.sort((a, b) => a.utc - b.utc);
@@ -531,7 +540,7 @@ function startTrip(w, routeId, stopId, utc) {
     if (!routeById.has(routeId)) return fail("Оберіть маршрут.");
     if (!hasStop(routeId, stopId)) return fail("Оберіть початкову зупинку маршруту.");
     if (!(utc > w.start_utc && utc < w.end_utc)) return fail("Час поза ділянкою ручної розмітки.");
-    if (tripsIn(w).some((t) => !t.closed)) return fail("Спочатку завершіть поточну ходку ділянки.");
+    if (liveTripsIn(w).some((t) => !t.closed)) return fail("Спочатку завершіть поточну ходку ділянки.");
     if (tripCovering(w, utc)) return fail("Поточний час усередині іншої ходки.");
     const mark = makeMark(utc);
     const trip = {
@@ -587,13 +596,40 @@ function reverseTrip(trip, stopId, utc) {
 }
 
 function reopenTrip(trip) {
-    if (tripsIn(windowOf(trip)).some((t) => !t.closed)) return fail("Спочатку завершіть поточну ходку ділянки.");
+    if (liveTripsIn(windowOf(trip)).some((t) => !t.closed)) return fail("Спочатку завершіть поточну ходку ділянки.");
     trip.closed = false;
     trip.end_stop_id = null;
     changed();
     const last = trip.marks[trip.marks.length - 1];
     if (last) selectMark(trip.uid, last.uid);
     return trip;
+}
+
+/** Рейс перед ділянкою закінчився на треку: продовження не розмічається і не йде у звіт. */
+function endTripOnTrack(trip) {
+    if (!trip.from_left || trip.ended_on_track) return;
+    const name = routeName(trip.route_id, trip.route_name);
+    const extra = operatorMarks(trip).length
+        ? " Зупинки, які ви встигли позначити на цьому продовженні, зникнуть."
+        : "";
+    if (!window.confirm(
+        `Рейс «${name}» закінчився на треку і в цій ділянці не продовжувався? `
+        + `Його не буде у списку відрізків і у звіті. Відрізки треку до ділянки залишаться.${extra}`,
+    )) return;
+    trip.ended_on_track = true;
+    trip.marks = trip.marks.filter((m) => m.anchor);
+    if (trip.marks[0]) trip.marks[0].count_after = null;
+    trip.closed = false;
+    trip.end_stop_id = null;
+    if (sel && sel.kind === "mark" && sel.tripUid === trip.uid) sel = null;
+    changed();
+    applyWindow();
+}
+
+function restoreTripFromTrack(trip) {
+    if (!trip.ended_on_track) return;
+    trip.ended_on_track = false;
+    changed();
 }
 
 /** Видалення ходки; продовження з треку не видаляється, а скидається до якоря. */
@@ -629,7 +665,7 @@ function deleteSelectedMark() {
         trips = trips.filter((t) => t !== s.trip);
         sel = null;
     } else {
-        if (wasLast && s.trip.closed && !tripsIn(windowOf(s.trip)).some((t) => !t.closed)) {
+        if (wasLast && s.trip.closed && !liveTripsIn(windowOf(s.trip)).some((t) => !t.closed)) {
             s.trip.closed = false;
             s.trip.end_stop_id = null;
         }
@@ -705,7 +741,7 @@ function composerContext(utc) {
         if (!covering.closed && utc > tripEnd(covering)) return { kind: "continue", window: w, trip: covering };
         return { kind: "insert", window: w, trip: covering };
     }
-    const open = tripsIn(w).find((t) => !t.closed);
+    const open = liveTripsIn(w).find((t) => !t.closed);
     if (open) {
         return {
             kind: "error",
@@ -1071,16 +1107,18 @@ function tripEl(trip, w) {
         metaTitle = "Кінцева зупинка має бути далі за маршрутом, ніж початкова";
         warn = true;
     }
-    // Продовження ходки з треку: маршрут видно в блоці треку над ділянкою.
-    if (!trip.from_left || warn) {
-        head.innerHTML =
-            `<span class="cc-trip-name">${trip.from_left ? "" : escapeHtml(routeName(trip.route_id, trip.route_name))}</span>`
-            + `<span class="cc-trip-meta"${metaTitle ? ` title="${escapeHtml(metaTitle)}"` : ""}>${meta}</span>`;
-    }
+    // «0/0» у відкритої ходки без закритих відрізків нічого не рахує.
+    // Назву маршруту (зокрема визначену треком у from_left) показуємо завжди.
+    const showMeta = warn || closedSegs.length > 0;
+    head.innerHTML =
+        `<span class="cc-trip-name">${escapeHtml(routeName(trip.route_id, trip.route_name))}</span>`
+        + (showMeta
+            ? `<span class="cc-trip-meta"${metaTitle ? ` title="${escapeHtml(metaTitle)}"` : ""}>${meta}</span>`
+            : "");
     if (!readOnly) {
         const tools = document.createElement("span");
         tools.className = "cm-trip-tools";
-        const list = tripsIn(w);
+        const list = liveTripsIn(w);
         if (trip.closed && !list.some((t) => !t.closed) && list[list.length - 1] === trip) {
             tools.appendChild(iconButton("↺", "Продовжити ходку (зняти завершення)", () => reopenTrip(trip)));
         }
@@ -1092,6 +1130,15 @@ function tripEl(trip, w) {
         if (tools.childElementCount) head.appendChild(tools);
     }
     if (head.childElementCount) el.appendChild(head);
+    if (!readOnly && trip.from_left) {
+        const endBtn = document.createElement("button");
+        endBtn.type = "button";
+        endBtn.className = "cm-end-on-track";
+        endBtn.textContent = "Закінчився на треку";
+        endBtn.title = "Рейс не продовжувався в цій ділянці: прибрати його зі списку відрізків і зі звіту";
+        endBtn.addEventListener("click", (e) => { e.stopPropagation(); endTripOnTrack(trip); });
+        el.appendChild(endBtn);
+    }
 
     for (const seg of segs) {
         const idx = trip.marks.indexOf(seg.from);
@@ -1119,6 +1166,24 @@ function tripEl(trip, w) {
     return el;
 }
 
+function endedNote(trip) {
+    const row = document.createElement("div");
+    row.className = "ch-ended";
+    const text = document.createElement("span");
+    text.textContent = `«${routeName(trip.route_id, trip.route_name)}» закінчився на треку`;
+    row.appendChild(text);
+    if (!readOnly) {
+        const back = document.createElement("button");
+        back.type = "button";
+        back.className = "cm-end-on-track cm-end-on-track-back";
+        back.textContent = "Повернути";
+        back.title = "Знову розмічати продовження цього рейсу в ділянці";
+        back.addEventListener("click", () => restoreTripFromTrack(trip));
+        row.appendChild(back);
+    }
+    return row;
+}
+
 function windowEl(w) {
     const status = windowStatus(w);
     const el = document.createElement("div");
@@ -1140,7 +1205,9 @@ function windowEl(w) {
         el.appendChild(st);
     }
 
-    for (const trip of tripsIn(w)) el.appendChild(tripEl(trip, w));
+    for (const trip of tripsIn(w)) {
+        el.appendChild(endedOnTrack(trip) ? endedNote(trip) : tripEl(trip, w));
+    }
     return el;
 }
 
@@ -1201,6 +1268,7 @@ function drawOverlay(ctx, p) {
         ctx.fillRect(x1, 0, Math.max(1, x2 - x1), h);
     }
     for (const trip of trips) {
+        if (endedOnTrack(trip)) continue;
         const own = operatorMarks(trip);
         const w = windowOf(trip);
         const continues = continuesIntoRight(trip);
@@ -1232,6 +1300,7 @@ function chronologyPayload() {
         uid: t.uid,
         window_uid: t.window_uid,
         from_left: t.from_left,
+        ended_on_track: !!(t.from_left && t.ended_on_track),
         route_id: t.route_id,
         route_name: routeName(t.route_id, t.route_name),
         closed: t.closed,

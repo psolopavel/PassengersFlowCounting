@@ -929,8 +929,12 @@ function renderComposer(focus = false) {
     box.onkeydown = (e) => {
         if (e.key === "Escape") {
             e.preventDefault();
+            e.stopPropagation();
             closeComposer();
-        } else if ((e.key === "Enter" && e.target.tagName !== "BUTTON") || e.key === "+" || e.code === "NumpadAdd") {
+        } else if (e.key === "Enter" || e.key === "+" || e.code === "NumpadAdd") {
+            // Інакше той самий Enter після закриття форми доходить до вікна і стрибає на наступний відрізок.
+            e.stopPropagation();
+            if (e.target.tagName === "BUTTON") return;
             e.preventDefault();
             composer?.primary?.click();
         }

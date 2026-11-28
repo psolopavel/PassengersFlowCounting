@@ -698,8 +698,11 @@ function renderComposer(focus = false) {
     box.onkeydown = (e) => {
         if (e.key === "Escape") {
             e.preventDefault();
+            e.stopPropagation();
             closeComposer();
-        } else if ((e.key === "Enter" && e.target.tagName !== "BUTTON") || e.key === "+" || e.code === "NumpadAdd") {
+        } else if (e.key === "Enter" || e.key === "+" || e.code === "NumpadAdd") {
+            e.stopPropagation();
+            if (e.target.tagName === "BUTTON") return;
             e.preventDefault();
             composer?.primary?.click();
         }

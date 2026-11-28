@@ -39,15 +39,15 @@ function _localTimeParts(utc, withSeconds) {
     const get = (type) => parts.find((p) => p.type === type)?.value ?? "00";
     return { h: get("hour"), m: get("minute"), s: get("second") };
 }
-const RATES = [0.25, 0.5, 1, 2, 4, 8, 16, 24, 32, 64];
+const RATES = [0.25, 0.5, 1, 2, 4, 8, 16, 24, 32, 64, 100];
 // Стеля швидкості, коли на екрані є відео: браузер не тягне playbackRate > 16×.
-// Для «тільки фото» стеля знімається (аж до кінця RATES).
+// Для «тільки фото» стеля знімається (аж до кінця RATES, 100×).
 const VIDEO_MAX_RATE = 16;
 const MAX_CAMS = 4;
 const DRIFT_SEC = 2;
 const PHOTO_MAX_GAP = 30;
 // Попереднє завантаження фото: вікно наперед у секундах РЕАЛЬНОГО часу
-// (на 64× це ~2 хв запису), але в межах [MIN, MAX] кадрів.
+// (на 100× це ~3 хв запису), але в межах [MIN, MAX] кадрів.
 const PHOTO_AHEAD_SEC = 2;
 const PHOTO_AHEAD_MIN = 3;
 const PHOTO_AHEAD_MAX = 40;
@@ -184,7 +184,7 @@ export class MultiCamPlayer {
         this.master = 0;
         this.playing = false;
         this.holding = false;
-        this.rateIdx = 2;
+        this.rateIdx = RATES.length - 1;
         this.lastTs = 0;
         this.raf = 0;
         this.visibleSince = 0;
@@ -710,7 +710,13 @@ export class MultiCamPlayer {
     setRate(idx) {
         // Не даємо піднятися вище стелі поточного режиму (на відео — 16×),
         // інакше з'являлися б «фантомні» щаблі, які потім треба прощовкувати.
-        this.rateIdx = clamp(idx, 0, this.maxRateIdx());
+        const cap = this.maxRateIdx();
+        // Вже на стелі і просять ще вище: вибір для фото (100×) не зрізаємо.
+        if (idx > cap && this.rateIdx > cap) {
+            this._updateRateUI();
+            return;
+        }
+        this.rateIdx = clamp(idx, 0, cap);
         this._updateRateUI();
         for (const c of this.cams) c.els.video.playbackRate = this.rate();
     }
